@@ -1,13 +1,13 @@
-use kube::{Api, Client};
-use k8s_openapi::api::core::v1::Event;
+use crate::application::remediation_workflow::RemediationWorkflow;
 use crate::domain::models::*;
 use crate::domain::services::Remediator;
-use crate::application::remediation_workflow::RemediationWorkflow;
+use anyhow::{Context, Result};
+use chrono::Utc;
 use futures::StreamExt;
+use k8s_openapi::api::core::v1::Event;
+use kube::{Api, Client};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
-use anyhow::{Result, Context};
 
 pub struct K8sWatcher {
     client: Client,
@@ -15,16 +15,22 @@ pub struct K8sWatcher {
 
 impl K8sWatcher {
     pub async fn new() -> Result<Self> {
-        let client = Client::try_default().await.context("failed to create K8s client")?;
+        let client = Client::try_default()
+            .await
+            .context("failed to create K8s client")?;
         Ok(Self { client })
     }
 
     /// Monitors events and triggers the remediation workflow.
-    pub async fn run<R: Remediator + 'static>(&self, _workflow: Arc<RemediationWorkflow<R>>) -> Result<()> {
+    pub async fn run<R: Remediator + 'static>(
+        &self,
+        _workflow: Arc<RemediationWorkflow<R>>,
+    ) -> Result<()> {
         let events: Api<Event> = Api::all(self.client.clone());
         println!("[Watcher] Monitoring events in all namespaces...");
 
-        let mut watcher = kube::runtime::watcher(events, kube::runtime::watcher::Config::default()).boxed();
+        let mut watcher =
+            kube::runtime::watcher(events, kube::runtime::watcher::Config::default()).boxed();
 
         while let Some(event) = watcher.next().await {
             match event {
@@ -47,10 +53,26 @@ impl K8sWatcher {
         }
 
         let resource = ClusterResource {
-            kind: event.involved_object.kind.clone().unwrap_or_else(|| "Unknown".into()),
-            name: event.involved_object.name.clone().unwrap_or_else(|| "Unknown".into()),
-            namespace: event.involved_object.namespace.clone().unwrap_or_else(|| "default".into()),
-            api_version: event.involved_object.api_version.clone().unwrap_or_else(|| "v1".into()),
+            kind: event
+                .involved_object
+                .kind
+                .clone()
+                .unwrap_or_else(|| "Unknown".into()),
+            name: event
+                .involved_object
+                .name
+                .clone()
+                .unwrap_or_else(|| "Unknown".into()),
+            namespace: event
+                .involved_object
+                .namespace
+                .clone()
+                .unwrap_or_else(|| "default".into()),
+            api_version: event
+                .involved_object
+                .api_version
+                .clone()
+                .unwrap_or_else(|| "v1".into()),
         };
 
         Some(ClusterError {

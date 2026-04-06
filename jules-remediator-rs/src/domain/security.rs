@@ -1,5 +1,5 @@
-use anyhow::{Result, bail};
 use crate::domain::models::FixProposal;
+use anyhow::{Result, bail};
 
 pub struct SecurityValidator;
 
@@ -10,11 +10,11 @@ impl SecurityValidator {
         if let Some(ref command) = proposal.remediation_command {
             Self::validate_command(command)?;
         }
-        
+
         // Basic validation for code changes can also be added here
         if proposal.code_change.contains("rm -rf") || proposal.code_change.contains("delete") {
-             // For now, very simple check. In production we'd use a regex or parser.
-             // bail!("Suspicious content in code change");
+            // For now, very simple check. In production we'd use a regex or parser.
+            // bail!("Suspicious content in code change");
         }
 
         Ok(())
@@ -22,17 +22,27 @@ impl SecurityValidator {
 
     fn validate_command(command: &str) -> Result<()> {
         let restricted_patterns = ["&&", ";", "|", ">", "<", "$(", "`", "\\"];
-        
+
         for pattern in restricted_patterns {
             if command.contains(pattern) {
-                bail!("Security Violation: Restricted character '{}' found in command", pattern);
+                bail!(
+                    "Security Violation: Restricted character '{}' found in command",
+                    pattern
+                );
             }
         }
 
         // Ensure command starts with known safe tools
-        let safe_prefixes = ["kubectl patch", "kubectl label", "kubectl annotate", "kubectl rollout"];
-        let is_safe = safe_prefixes.iter().any(|prefix| command.starts_with(prefix));
-        
+        let safe_prefixes = [
+            "kubectl patch",
+            "kubectl label",
+            "kubectl annotate",
+            "kubectl rollout",
+        ];
+        let is_safe = safe_prefixes
+            .iter()
+            .any(|prefix| command.starts_with(prefix));
+
         if !is_safe {
             bail!("Security Violation: Command prefix not in safe list");
         }

@@ -33,7 +33,12 @@ impl MlflowLogger {
              "value": latency as f64,
              "timestamp": chrono::Utc::now().timestamp_millis(),
         });
-        let _ = self.client.post(&endpoint).json(&payload_latency).send().await;
+        let _ = self
+            .client
+            .post(&endpoint)
+            .json(&payload_latency)
+            .send()
+            .await;
 
         Ok(())
     }

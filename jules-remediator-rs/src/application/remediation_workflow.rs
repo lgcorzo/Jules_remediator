@@ -1,7 +1,7 @@
 use crate::domain::models::*;
-use crate::domain::services::Remediator;
 use crate::domain::security::SecurityValidator;
-use anyhow::{Result, Context};
+use crate::domain::services::Remediator;
+use anyhow::{Context, Result};
 use std::sync::Arc;
 
 pub struct RemediationWorkflow<R: Remediator> {
@@ -18,28 +18,41 @@ impl<R: Remediator> RemediationWorkflow<R> {
         println!("[Remediator] Processing event: {}", error.id);
 
         if !self.remediator.classify_error(&error) {
-            println!("[Remediator] Error {} classified as non-remediable or transient.", error.id);
+            println!(
+                "[Remediator] Error {} classified as non-remediable or transient.",
+                error.id
+            );
             return Ok(None);
         }
 
         println!("[Remediator] Proposing fix for error: {}", error.id);
-        let proposal = self.remediator.propose_fix(&error)
+        let proposal = self
+            .remediator
+            .propose_fix(&error)
             .await
             .context("failed to propose fix")?;
-        
+
         // --- Security Layer ---
         SecurityValidator::validate_proposal(&proposal)
             .context("security check failed for proposal")?;
 
         println!("[Remediator] Executing fix: {}", proposal.proposal_id);
-        let outcome = self.remediator.execute_fix(&proposal)
+        let outcome = self
+            .remediator
+            .execute_fix(&proposal)
             .await
             .context("failed to execute fix")?;
 
         if outcome.success {
-            println!("[Remediator] Success! Error {} remediated in {}ms", error.id, outcome.latency_ms);
+            println!(
+                "[Remediator] Success! Error {} remediated in {}ms",
+                error.id, outcome.latency_ms
+            );
         } else {
-            println!("[Remediator] Failure: Error {} remediation failed.", error.id);
+            println!(
+                "[Remediator] Failure: Error {} remediation failed.",
+                error.id
+            );
         }
 
         Ok(Some(outcome))
@@ -50,8 +63,8 @@ impl<R: Remediator> RemediationWorkflow<R> {
 mod tests {
     use super::*;
     use crate::domain::services::MockRemediator;
-    use uuid::Uuid;
     use chrono::Utc;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_handle_error_success() {
@@ -61,7 +74,7 @@ mod tests {
 
         // 1. Classification
         mock.expect_classify_error().returning(|_| true);
-        
+
         // 2. Proposal
         mock.expect_propose_fix().returning(move |_| {
             Ok(FixProposal {
@@ -87,13 +100,18 @@ mod tests {
 
         let workflow = RemediationWorkflow::new(Arc::new(mock));
         let error = ClusterError {
-             id: error_id,
-             timestamp: Utc::now(),
-             severity: Severity::Medium,
-             resource: ClusterResource { kind: "Pod".into(), name: "foo".into(), namespace: "default".into(), api_version: "v1".into() },
-             message: "Failed".into(),
-             error_code: "OOMKilled".into(),
-             raw_event: serde_json::Value::Null,
+            id: error_id,
+            timestamp: Utc::now(),
+            severity: Severity::Medium,
+            resource: ClusterResource {
+                kind: "Pod".into(),
+                name: "foo".into(),
+                namespace: "default".into(),
+                api_version: "v1".into(),
+            },
+            message: "Failed".into(),
+            error_code: "OOMKilled".into(),
+            raw_event: serde_json::Value::Null,
         };
 
         let result = workflow.handle_error(error).await;
@@ -122,17 +140,27 @@ mod tests {
 
         let workflow = RemediationWorkflow::new(Arc::new(mock));
         let error = ClusterError {
-             id: Uuid::new_v4(),
-             timestamp: Utc::now(),
-             severity: Severity::Medium,
-             resource: ClusterResource { kind: "Pod".into(), name: "foo".into(), namespace: "default".into(), api_version: "v1".into() },
-             message: "Failed".into(),
-             error_code: "OOMKilled".into(),
-             raw_event: serde_json::Value::Null,
+            id: Uuid::new_v4(),
+            timestamp: Utc::now(),
+            severity: Severity::Medium,
+            resource: ClusterResource {
+                kind: "Pod".into(),
+                name: "foo".into(),
+                namespace: "default".into(),
+                api_version: "v1".into(),
+            },
+            message: "Failed".into(),
+            error_code: "OOMKilled".into(),
+            raw_event: serde_json::Value::Null,
         };
 
         let result = workflow.handle_error(error).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("security check failed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("security check failed")
+        );
     }
 }

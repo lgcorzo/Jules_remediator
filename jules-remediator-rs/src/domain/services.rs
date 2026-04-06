@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::domain::models::*;
+use anyhow::Result;
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait] // Added async_trait for better trait compatibility

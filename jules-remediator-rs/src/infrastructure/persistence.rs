@@ -1,8 +1,8 @@
+use crate::domain::models::*;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::RwLock;
 use uuid::Uuid;
-use crate::domain::models::*;
 
 pub struct SurrealPersistence {
     errors: RwLock<HashMap<Uuid, ClusterError>>,

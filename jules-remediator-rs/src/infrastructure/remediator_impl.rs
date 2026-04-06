@@ -13,11 +13,7 @@ pub struct RemediatorImpl {
 }
 
 impl RemediatorImpl {
-    pub async fn new(
-        dispatcher_uri: &str,
-        mlflow_uri: &str,
-        db_path: &str,
-    ) -> Result<Self> {
+    pub async fn new(dispatcher_uri: &str, mlflow_uri: &str, db_path: &str) -> Result<Self> {
         Ok(Self {
             dispatcher: Arc::new(JulesDispatcher::new(dispatcher_uri).await?),
             logger: Arc::new(MlflowLogger::new(mlflow_uri.into())),
@@ -29,10 +25,11 @@ impl RemediatorImpl {
 #[async_trait::async_trait]
 impl Remediator for RemediatorImpl {
     fn classify_error(&self, error: &ClusterError) -> bool {
-         // DDD Rule: Structural vs Transient.
-         // Let's assume we skip simple transient errors (e.g. ImagePullBackOff due to registry transient error)
-         // but handle OOMKilled or CrashLoopBackOff.
-         !error.message.contains("transient") && (error.error_code == "OOMKilled" || error.error_code == "BackOff")
+        // DDD Rule: Structural vs Transient.
+        // Let's assume we skip simple transient errors (e.g. ImagePullBackOff due to registry transient error)
+        // but handle OOMKilled or CrashLoopBackOff.
+        !error.message.contains("transient")
+            && (error.error_code == "OOMKilled" || error.error_code == "BackOff")
     }
 
     async fn propose_fix(&self, error: &ClusterError) -> Result<FixProposal> {
@@ -42,8 +39,11 @@ impl Remediator for RemediatorImpl {
 
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome> {
         // Logic to push to Git or patch cluster (GitOps approach preferred)
-        println!("[Remediator] Executing fix proposal: {}", proposal.proposal_id);
-        
+        println!(
+            "[Remediator] Executing fix proposal: {}",
+            proposal.proposal_id
+        );
+
         let outcome = RemediationOutcome {
             proposal_id: proposal.proposal_id,
             success: true,
@@ -52,7 +52,9 @@ impl Remediator for RemediatorImpl {
         };
 
         self.persistence.save_outcome(&outcome).await?;
-        self.logger.log_remediation(outcome.success, outcome.latency_ms).await?;
+        self.logger
+            .log_remediation(outcome.success, outcome.latency_ms)
+            .await?;
 
         Ok(outcome)
     }
