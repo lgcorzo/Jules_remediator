@@ -13,10 +13,10 @@ This repository is an **autonomous factory for Kubernetes error remediation**. O
 
 ## 📁 Key Documentation
 
-- [Solution Architecture](Solution_Architecture.md): How the system is built using DDD.
-- [LLMOps Standard 2026](LLMOps_Standard_2026.md): Tracking experiments and metrics.
-- [Remediation Workflow](Remediation_Workflow.md): The end-to-step-by-step process.
-- [Project Planning](Planning.md): Roadmap and current advances.
+- [Solution Architecture](Solution_Architecture): How the system is built using DDD.
+- [LLMOps Standard 2026](LLMOps_Standard_2026): Tracking experiments and metrics.
+- [Remediation Workflow](Remediation_Workflow): The end-to-step-by-step process.
+- [Project Planning](Planning): Roadmap and current advances.
 
 ---
 *Maintained by Antigravity & Jules agents.*
