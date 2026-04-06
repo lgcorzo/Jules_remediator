@@ -33,15 +33,13 @@ impl K8sWatcher {
 
         while let Some(event) = watcher.next().await {
             match event {
-                Ok(kube::runtime::watcher::Event::Applied(e)) => {
+                Ok(kube::runtime::watcher::Event::Apply(e)) => {
                     self.process_event(e, workflow.clone()).await?;
                 }
-                Ok(kube::runtime::watcher::Event::Restarted(es)) => {
-                    for e in es {
-                        self.process_event(e, workflow.clone()).await?;
-                    }
+                Ok(kube::runtime::watcher::Event::InitDone) => {
+                    println!("[Watcher] Initial event sync complete.");
                 }
-                Ok(kube::runtime::watcher::Event::Deleted(_)) => {}
+                Ok(kube::runtime::watcher::Event::Delete(_)) => {}
                 Err(e) => eprintln!("[Watcher] Watch error: {:?}", e),
             }
         }

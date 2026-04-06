@@ -34,8 +34,8 @@ impl JulesDispatcher {
                     "arguments": {
                         "error_id": error.id,
                         "message": error.message,
-                        "resource": error.resource_name,
-                        "namespace": error.namespace
+                        "resource": error.resource.name,
+                        "namespace": error.resource.namespace
                     }
                 },
                 "id": 1
@@ -65,7 +65,7 @@ impl JulesDispatcher {
                 "Medium" => RiskScore::Medium,
                 _ => RiskScore::Low,
             },
-            confidence: result["confidence"].as_f64().unwrap_or(0.0),
+            confidence: result["confidence"].as_f64().unwrap_or(0.0) as f32,
             remediation_command: result["remediation_command"].as_str().map(|s| s.to_string()),
         })
     }
