@@ -1,10 +1,12 @@
-use crate::application::remediation_workflow::RemediationWorkflow;
+use crate::application::RemediationWorkflow;
+use crate::domain::models::*;
 use crate::domain::services::Remediator;
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::Event;
 use kube::{Api, Client};
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct K8sWatcher {
     client: Client,
@@ -21,7 +23,7 @@ impl K8sWatcher {
     /// Monitors events and triggers the remediation workflow.
     pub async fn run<R: Remediator + 'static>(
         &self,
-        _workflow: Arc<RemediationWorkflow<R>>,
+        workflow: Arc<RemediationWorkflow<R>>,
     ) -> Result<()> {
         let events: Api<Event> = Api::all(self.client.clone());
         println!("[Watcher] Monitoring events in all namespaces...");
@@ -31,12 +33,48 @@ impl K8sWatcher {
 
         while let Some(event) = watcher.next().await {
             match event {
-                Ok(e) => {
-                    // In current environment, the specific variant names for Event<K> are mismatched.
-                    // We use a generic approach to prove the architecture.
-                    println!("[Watcher] event received: {:?}", e);
+                Ok(kube::runtime::watcher::Event::Applied(e)) => {
+                    self.process_event(e, workflow.clone()).await?;
                 }
+                Ok(kube::runtime::watcher::Event::Restarted(es)) => {
+                    for e in es {
+                        self.process_event(e, workflow.clone()).await?;
+                    }
+                }
+                Ok(kube::runtime::watcher::Event::Deleted(_)) => {}
                 Err(e) => eprintln!("[Watcher] Watch error: {:?}", e),
+            }
+        }
+        Ok(())
+    }
+
+    async fn process_event<R: Remediator + 'static>(
+        &self,
+        e: Event,
+        workflow: Arc<RemediationWorkflow<R>>,
+    ) -> Result<()> {
+        // Filter for errors (e.g., Warning events with OOMKilled or BackOff)
+        if e.type_ == Some("Warning".into()) {
+            let reason = e.reason.clone().unwrap_or_default();
+            if reason == "OOMKilled" || reason == "BackOff" {
+                println!("[Watcher] Detected target error: {} in {}", reason, e.metadata.name.clone().unwrap_or_default());
+                
+                let cluster_error = ClusterError {
+                    id: Uuid::new_v4(),
+                    timestamp: chrono::Utc::now(),
+                    severity: Severity::High,
+                    resource: ClusterResource {
+                        kind: e.involved_object.kind.clone().unwrap_or_default(),
+                        name: e.involved_object.name.clone().unwrap_or_default(),
+                        namespace: e.involved_object.namespace.clone().unwrap_or_default(),
+                        api_version: e.involved_object.api_version.clone().unwrap_or_default(),
+                    },
+                    message: e.message.clone().unwrap_or_default(),
+                    error_code: reason,
+                    raw_event: serde_json::to_value(&e).unwrap_or(serde_json::Value::Null),
+                };
+
+                let _ = workflow.handle_error(cluster_error).await;
             }
         }
         Ok(())
