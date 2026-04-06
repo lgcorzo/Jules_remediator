@@ -1,0 +1,25 @@
+[package]
+name = "jules-remediator-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.36", features = ["full"] }
+kube = { version = "0.96", features = ["runtime", "derive"] }
+k8s-openapi = { version = "0.23", features = ["v1_30"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+surrealdb = { version = "1.0", features = ["kv-mem"] }
+uuid = { version = "1.7", features = ["v4", "serde"] }
+futures = "0.3"
+mcp_rust_sdk = "0.1"
+async-trait = "0.1"
+
+[dev-dependencies]
+mockall = "0.12"
+mockito = "1.2"
+tokio-test = "0.4"
+proptest = "1.4"
