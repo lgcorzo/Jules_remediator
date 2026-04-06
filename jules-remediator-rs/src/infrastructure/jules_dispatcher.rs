@@ -1,5 +1,5 @@
 use crate::domain::models::*;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde_json::json;
 
@@ -49,24 +49,29 @@ impl JulesDispatcher {
 
         let body: serde_json::Value = response.json().await?;
         if let Some(error) = body.get("error") {
-             return Err(anyhow!("Jules MCP Tool Error: {}", error["message"]));
+            return Err(anyhow!("Jules MCP Tool Error: {}", error["message"]));
         }
 
         let result = &body["result"];
-        
+
         // Map MCP result to FixProposal
         Ok(FixProposal {
             error_id: error.id,
             proposal_id: uuid::Uuid::new_v4(),
             code_change: result["code_change"].as_str().unwrap_or("").into(),
-            explanation: result["explanation"].as_str().unwrap_or("No explanation provided").into(),
+            explanation: result["explanation"]
+                .as_str()
+                .unwrap_or("No explanation provided")
+                .into(),
             risk_score: match result["risk_score"].as_str().unwrap_or("Low") {
                 "High" => RiskScore::High,
                 "Medium" => RiskScore::Medium,
                 _ => RiskScore::Low,
             },
             confidence: result["confidence"].as_f64().unwrap_or(0.0) as f32,
-            remediation_command: result["remediation_command"].as_str().map(|s| s.to_string()),
+            remediation_command: result["remediation_command"]
+                .as_str()
+                .map(|s| s.to_string()),
         })
     }
 }

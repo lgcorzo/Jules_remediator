@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde_json::json;
 
@@ -36,7 +36,10 @@ impl MlflowLogger {
 
         let response = self.client.post(&endpoint).json(&payload).send().await?;
         if !response.status().is_success() {
-            return Err(anyhow!("Failed to create MLflow run: {}", response.status()));
+            return Err(anyhow!(
+                "Failed to create MLflow run: {}",
+                response.status()
+            ));
         }
 
         let body: serde_json::Value = response.json().await?;
@@ -52,22 +55,32 @@ impl MlflowLogger {
     pub async fn log_remediation(&self, success: bool, latency: u64) -> Result<()> {
         let run_id = self.get_or_create_run().await?;
         let endpoint = format!("{}/api/2.0/mlflow/runs/log-metric", self.tracking_uri);
-        
+
         // Log Success Metric
-        let _ = self.client.post(&endpoint).json(&json!({
-            "run_id": run_id,
-            "key": "remediation_success",
-            "value": if success { 1.0 } else { 0.0 },
-            "timestamp": chrono::Utc::now().timestamp_millis(),
-        })).send().await;
+        let _ = self
+            .client
+            .post(&endpoint)
+            .json(&json!({
+                "run_id": run_id,
+                "key": "remediation_success",
+                "value": if success { 1.0 } else { 0.0 },
+                "timestamp": chrono::Utc::now().timestamp_millis(),
+            }))
+            .send()
+            .await;
 
         // Log Latency Metric
-        let _ = self.client.post(&endpoint).json(&json!({
-             "run_id": run_id,
-             "key": "latency_ms",
-             "value": latency as f64,
-             "timestamp": chrono::Utc::now().timestamp_millis(),
-        })).send().await;
+        let _ = self
+            .client
+            .post(&endpoint)
+            .json(&json!({
+                 "run_id": run_id,
+                 "key": "latency_ms",
+                 "value": latency as f64,
+                 "timestamp": chrono::Utc::now().timestamp_millis(),
+            }))
+            .send()
+            .await;
 
         Ok(())
     }

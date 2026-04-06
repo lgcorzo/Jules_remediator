@@ -33,8 +33,12 @@ impl K8sWatcher {
 
         while let Some(event) = watcher.next().await {
             match event {
-                Ok(kube::runtime::watcher::Event::Apply(e)) => {
+                Ok(kube::runtime::watcher::Event::Apply(e))
+                | Ok(kube::runtime::watcher::Event::InitApply(e)) => {
                     self.process_event(e, workflow.clone()).await?;
+                }
+                Ok(kube::runtime::watcher::Event::Init) => {
+                    println!("[Watcher] Initializing event sync...");
                 }
                 Ok(kube::runtime::watcher::Event::InitDone) => {
                     println!("[Watcher] Initial event sync complete.");
@@ -55,8 +59,12 @@ impl K8sWatcher {
         if e.type_ == Some("Warning".into()) {
             let reason = e.reason.clone().unwrap_or_default();
             if reason == "OOMKilled" || reason == "BackOff" {
-                println!("[Watcher] Detected target error: {} in {}", reason, e.metadata.name.clone().unwrap_or_default());
-                
+                println!(
+                    "[Watcher] Detected target error: {} in {}",
+                    reason,
+                    e.metadata.name.clone().unwrap_or_default()
+                );
+
                 let cluster_error = ClusterError {
                     id: Uuid::new_v4(),
                     timestamp: chrono::Utc::now(),
