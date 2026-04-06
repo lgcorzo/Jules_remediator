@@ -1,14 +1,14 @@
-### [Home](Home.md)
+### [Home](Home)
 
 ### Architecture
-- [Solution Architecture](Solution_Architecture.md)
-- [Remediation Workflow](Remediation_Workflow.md)
+- [Solution Architecture](Solution_Architecture)
+- [Remediation Workflow](Remediation_Workflow)
 
 ### Standards
-- [LLMOps Standard 2026](LLMOps_Standard_2026.md)
+- [LLMOps Standard 2026](LLMOps_Standard_2026)
 
 ### Advances
-- [Project Planning](Planning.md)
+- [Project Planning](Planning)
 
 ---
 *Powered by Jules Remediator Factory*
