@@ -24,13 +24,13 @@ This repository is an autonomous factory for Kubernetes error remediation. The "
 
 ### 3. Type Safety & Quality
 
-- Use `Pydantic v2+` (or v3 when available) for all DTOs and entities.
-- Enforce strict typing with `mypy`.
-- Use `ruff` for linting and formatting.
+- Enforce strict typing with Rust's type system.
+- Use `clippy` for linting and `rustfmt` for formatting.
+- Ensure 95% test coverage for all crates in the workspace.
 
 ### 4. Kubernetes Integration
 
-- Use the formal `kubernetes-python-client`.
+- Use the formal `kube-rs` client.
 - Resource manifests should follow GitOps patterns (FluxCD).
 - Deploy with `sealed-secrets` for sensitive data.
 
