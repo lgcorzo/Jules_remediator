@@ -25,15 +25,16 @@ Aethelgard operates as a "Dark System," silently maintaining the cluster's stabi
 
 ## Getting Started
 
-1.  **Install Dependencies**:
+1.  **Configure Environment**:
     ```bash
-    poetry install
+    export JULES_DISPATCHER_URI="http://jules-mcp-server:8080/sse"
+    export MLFLOW_TRACKING_URI="http://mlflow.ml-system:5000"
     ```
-2.  **Run the Webhook**:
+2.  **Run the Remediator**:
     ```bash
-    uvicorn src.interface.webhook:app --host 0.0.0.0 --port 8000
+    cargo run --release
     ```
-3.  **Configure FluxCD**: Point your FluxCD alerts to the `/webhook/flux-alert` endpoint.
+3.  **Configure FluxCD**: Point your FluxCD alerts to the `jules-remediator` service in your cluster.
 
 ## Contribution for Agents
 
