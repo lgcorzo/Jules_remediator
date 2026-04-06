@@ -15,30 +15,27 @@
 2. **MLOps Standard 2026**: Every remediation session is a tracked experiment with feedback loops.
 3. **Rust Integrity**: Optimized for low footprint and high reliability on MicroK8s.
 
-## 📖 Documentation Guide
+---
 
-- [Remediation Workflow](Remediation_Workflow): Step-by-step remediation process.
-- [LLMOps Process](LLMops_Process): Experiment lifecycle and metrics tracking.
+## 📂 Documentation Dashboard
 
-### 🔐 Security & Governance
-- [Solution Architecture](Solution_Architecture): High-level system design.
-- [Data Architecture](Data_Architecture): DDD layers and end-to-end data flow.
-- [Remediation Workflow](Remediation_Workflow): Step-by-step remediation process.
-- [LLMOps Process](LLMops_Process): Experiment lifecycle and metrics tracking.
+### 📜 Project Strategy
+*   [**Strategic Proposal**](Aethelgard_Proposal): The "Dark System" vision and Phase 1-4 roadmap.
+*   [**Business Case**](Business_Case): ROI analysis and MTTR reduction metrics.
+*   [**Project Requirements**](Project_Requirements): Functional and non-functional specifications.
 
-- **SecurityValidator**: Native sanitation of all execution commands.
-- **GitOps Reconciliation**: No direct cluster writes; all changes via PR review.
-- **MLOps Telemetry**: Full traceability into every autonomous session.
+### 📐 Architecture & Design
+*   [**Solution Architecture**](Solution_Architecture): DDD layered design and FluxCD/MCP integration.
+*   [**Data Architecture**](Data_Architecture): Entity relationships and end-to-end data flow.
 
-### Safety & Scope
-- [Security Strategy](Security_Strategy): Guardrails and command sanitization.
-- [Test Strategy](Test_Strategy): Verification and validation plan.
-- [Business Case](Business_Case): Value proposition and ROI analytics.
-- [Project Requirements](Project_Requirements): Functional and non-functional specs.
+### 🔄 Process & Lifecycle
+*   [**LLMOps Process**](LLMops_Process): Experiment-driven remediation and MLflow telemetry.
+*   [**Remediation Workflow**](Remediation_Workflow): Step-by-step Standard Operating Procedures.
 
-### Standards & Roadmap
-- [LLMOps Standard 2026](LLMOps_Standard_2026): The framework for automated ops.
-- [Project Planning](Planning): Current milestones and recent advances.
+### ⚖️ Assurance & Roadmap
+*   [**Security Strategy**](Security_Strategy): `SecurityValidator` logic and command sanitization.
+*   [**Test Strategy**](Test_Strategy): Unit, Integration, and AI Evaluation plans.
+*   [**Project Planning**](Planning): Current milestones and recent architectural advances.
 
 ---
 
