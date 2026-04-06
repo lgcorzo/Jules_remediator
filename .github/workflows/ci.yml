@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feat/rust-remediator-tdd-security ]
   pull_request:
     branches: [ main ]
 
@@ -12,6 +12,9 @@ env:
 jobs:
   lint-and-format:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jules-remediator-rs
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust
@@ -26,6 +29,9 @@ jobs:
   test-and-coverage:
     runs-on: ubuntu-latest
     needs: lint-and-format
+    defaults:
+      run:
+        working-directory: jules-remediator-rs
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust
@@ -37,6 +43,6 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        files: lcov.info
+        files: jules-remediator-rs/lcov.info
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
