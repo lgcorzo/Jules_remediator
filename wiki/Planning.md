@@ -1,25 +1,44 @@
-# Project Planning & Advances
+# Project Planning & Roadmap: Project Aethelgard 🗺️
 
-Track the evolution of the **Jules Remediator** from MVP to fully autonomous production-grade system.
+This document tracks the strategic phases and milestones for transitioning to a fully autonomous, Rust-based "Dark System."
 
-## 🏁 Milestones
+## 📍 Current Status: Phase 1 (Foundation)
+
+| Phase | Milestone | Status |
+| :--- | :--- | :--- |
+| **Phase 1** | Foundation: Rust workspace & FluxCD setup | ✅ |
+| **Phase 2** | MCP Integration: ZeroClaw to Jules API | 🏗️ |
+| **Phase 3** | Domain Refinement: DDD Error Categorization | 📅 |
+| **Phase 4** | Dark Mode Deployment: 100% Automation | 📅 |
+
+## 🛠️ Detailed Roadmap
 
 ### Phase 1: Foundation (Current)
-- [x] Initial DDD Project Structure.
-- [x] FluxCD Webhook Integration.
-- [x] Jules SDK Integration.
-- [x] Basic K8s Client Implementation.
-- [x] **Wiki Established** (You are here).
+- [x] Create Project Aethelgard Strategic Proposal.
+- [x] Establish Wiki Documentation Suite (MLOps 2026 Standards).
+- [x] Initial rebranding of documentation.
+- [ ] Setup Rust repository structure (`jules-remediator-rs`).
+- [ ] Configure FluxCD for the home lab cluster.
 
-### Phase 2: Observability & LLMOps
-- [ ] MLflow experiment tracking integration.
-- [ ] Prometheus metrics export.
-- [ ] Dashboard for remediation success tracking.
+### Phase 2: MCP Integration
+- [ ] Implement ZeroClaw (The Orchestrator) in Rust.
+- [ ] Connect ZeroClaw to Jules MCP via STDIO.
+- [ ] Implement the first "Self-Healing" loop for `OOMKilled` events.
 
-### Phase 3: Advanced Remediation
-- [ ] Multi-step remediation (try-retry logic).
-- [ ] Human-in-the-loop (HITL) approval gates for sensitive changes.
-- [ ] Sealed Secrets management for PR credentials.
+### Phase 3: Domain Refinement
+- [ ] Implement DDD patterns to categorize errors into "Transient" vs. "Permanent".
+- [ ] Refine `AGENTS.md` instructions based on initial experiment data.
+- [ ] Integrate MLflow for performance tracking.
+
+### Phase 4: Dark Mode Deployment
+- [ ] Final security hardening & `SecurityValidator` audit.
+- [ ] Disable manual cluster write access.
+- [ ] Transition to 100% automated remediation ("Dark System").
+
+## 📈 Success Metrics
+- **MTTR Reduction**: Aiming for < 5 minutes average recovery time.
+- **Resource Footprint**: < 15MB RAM for the core controller.
+- **Remediation Success Rate**: Target > 95% via Jules iterations.
 
 ## 📈 Recent Advances
 
