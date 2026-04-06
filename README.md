@@ -1,20 +1,26 @@
-# Jules Remediator Factory
+# Project Aethelgard 🏰
 
-Autonomous Kubernetes error remediation factory powered by Jules AI.
+**The Self-Healing Dark System for MicroK8s.**
 
-## Overview
+Project Aethelgard is a high-performance, autonomous remediation system designed for memory-constrained Kubernetes environments. It leverages a Rust-native core (**ZeroClaw**) to monitor cluster health and utilizes **Google Jules (via MCP)** to perform intelligent, GitOps-driven error remediation.
 
-The Jules Remediator is a self-healing system that listens for FluxCD alerts and automatically proposes and applies fixes to cluster errors. It adheres to **Domain-Driven Design (DDD)** and **MLOps 2026** standards.
+## 🛰️ Mission
 
-## Project Structure
+To eliminate manual intervention in Kubernetes maintenance by transitioning to an autonomous, event-driven infrastructure that observes, diagnoses, and repairs itself in real-time.
 
-- `src/domain/`: Core business logic and error models.
+## 🏗️ Architecture: The Dark System
+
+Aethelgard operates as a "Dark System," silently maintaining the cluster's stability by reconciling the "Source of Truth" in Git.
+
+- **The Watcher (Rust)**: High-speed observation via `kube-rs`.
+- **The Orchestrator (ZeroClaw)**: Rust-based MCP host for AI coordination.
+- **The Executor (Jules MCP)**: Autonomous AI engineering agent.
+- **The Sync (FluxCD)**: Automated GitOps reconciliation.
 - `src/application/`: Orchestration and use case handling.
 - `src/infrastructure/`: Kubernetes and Jules SDK integrations.
 - `src/interface/`: Webhook entry points for FluxCD.
 - `ml/`: Experiment tracking and model metrics via MLflow.
 - `k8s/`: GitOps manifests for Deployment and RBAC.
-- `_agent/workflows/`: Standard operating procedures for AI agents.
 - `.artifacts/`: Historical planning and execution docs.
 
 ## Getting Started

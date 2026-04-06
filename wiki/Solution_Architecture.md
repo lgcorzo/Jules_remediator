@@ -1,8 +1,19 @@
-# Solution Architecture (DDD)
+# Solution Architecture: The Dark System 🌑
 
-The **Jules Remediator** is structured following strict **Domain-Driven Design (DDD)** principles to ensure that the core remediation logic remains independent of underlying technologies.
+**Project Aethelgard** implements a **Decoupled Event-Driven Controller** architecture, often referred to as a "Dark System" because it operates silently and autonomously to maintain the cluster's "Source of Truth" in Git.
 
-## 🏗️ Architecture Layers
+## 🏗️ Architectural Components
+
+| Component | Role | Technology |
+| :--- | :--- | :--- |
+| **The Watcher** | Real-time observation of K8s events. | Rust / `kube-rs` |
+| **The Orchestrator** | Error translation & prompt engineering. | Rust / **ZeroClaw** (MCP Host) |
+| **The Executor** | Code modification & validation. | Remote AI / **Jules (MCP)** |
+| **The Sync** | Cluster state reconciliation. | **FluxCD** (GitOps) |
+
+## 🧱 DDD Layered Design
+
+The system adheres to **Domain-Driven Design (DDD)** to ensure stability and separation of concerns.
 
 ### 1. Domain Layer (`/src/domain`)
 The core of the system. It contains:
@@ -17,23 +28,22 @@ Orchestrates the use cases. It coordinates the business logic:
 - **Port Definitions**: Interfaces for repositories and external services (e.g., `IMLflowTracker`, `IKubernetesClient`).
 
 ### 3. Infrastructure Layer (`/src/infrastructure`)
-Concrete implementations of technology-specific logic:
-- **K8s Client**: Real implementation of cluster interactions.
-- **MLflow Tracking**: Integration with the MLOps monitoring stack.
-- **Persistence**: GitOps/PR creation logic.
+Concrete implementations:
+- **ZeroClaw (Orchestrator)**: The Rust-based MCP host that bridges the cluster and Jules.
+- **MLflow / OpenTelemetry**: Tracking metrics and traces.
+- **Persistence**: SQLite/SurrealDB for local MLOps tracking.
 
 ### 4. Interface Layer (`/src/interface`)
-The external communication boundaries:
 - **Webhook API**: Receives FluxCD alerts.
-- **CLI**: Manual trigger for remediation tasks.
-- **API**: Monitoring endpoints.
+- **MCP Bridge**: Communication over STDIO/HTTP for Jules integration.
 
 ## 🧩 Dependency Rule
 Dependencies only point **inward**. The Domain layer knows nothing about the Infrastructure layer.
 
 ```mermaid
 graph TD
-    Interface --> Application
-    Infrastructure --> Application
-    Application --> Domain
+    Watcher[The Watcher] -->|Events| Orchestrator[The Orchestrator]
+    Orchestrator -->|MCP| Executor[The Executor]
+    Executor -->|PR| Git[Git Source of Truth]
+    Git -->|Reconcile| Sync[The Sync]
 ```
