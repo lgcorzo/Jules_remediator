@@ -1,0 +1,26 @@
+[agent]
+name = "jules-remediator-rs"
+version = "0.1.0"
+mode = "controller" # Lightweight event-driven loop
+description = "MicroK8s Remediator (Dark System)"
+
+[provider]
+type = "mcp"
+url = "${JULES_DISPATCHER_URI}"
+id = "jules-cloud"
+
+[memory]
+type = "surreal"
+path = "surreal.db"
+
+[observability]
+type = "mlflow"
+url = "${MLFLOW_TRACKING_URI}"
+experiment = "JulesRemediation"
+
+[watcher]
+# Custom segment for controller loop configuration
+interval = "10s"
+namespaces = ["default", "flux-system", "kube-system"]
+severity_threshold = "medium"
+remediable_errors = ["OOMKilled", "CrashLoopBackOff", "BackOff"]
