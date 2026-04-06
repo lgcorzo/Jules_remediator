@@ -14,10 +14,9 @@ impl JulesDispatcher {
     }
 
     pub async fn get_fix(&self, error: &ClusterError) -> Result<FixProposal> {
-        // Placeholder for the actual MCP tool call: `jules_cloud.propose_fix`
         println!(
-            "[Dispatcher] Dispatching mission to Jules Cloud for error: {}",
-            error.id
+            "[Dispatcher] Dispatching mission to Jules Cloud endpoint: {} for error: {}",
+            self.endpoint, error.id
         );
 
         // Mock response
