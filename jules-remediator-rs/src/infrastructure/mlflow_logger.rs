@@ -1,4 +1,6 @@
-use anyhow::{Result, anyhow};
+use crate::domain::ports::Tracker;
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
@@ -51,36 +53,36 @@ impl MlflowLogger {
         *run_id_opt = Some(id.clone());
         Ok(id)
     }
+}
 
-    pub async fn log_remediation(&self, success: bool, latency: u64) -> Result<()> {
+#[async_trait]
+impl Tracker for MlflowLogger {
+    async fn log_metric(&self, key: &str, value: f64) -> Result<()> {
         let run_id = self.get_or_create_run().await?;
         let endpoint = format!("{}/api/2.0/mlflow/runs/log-metric", self.tracking_uri);
 
-        // Log Success Metric
         let _ = self
             .client
             .post(&endpoint)
             .json(&json!({
                 "run_id": run_id,
-                "key": "remediation_success",
-                "value": if success { 1.0 } else { 0.0 },
+                "key": key,
+                "value": value,
                 "timestamp": chrono::Utc::now().timestamp_millis(),
             }))
             .send()
             .await;
 
+        Ok(())
+    }
+
+    async fn log_remediation(&self, success: bool, latency_ms: u64) -> Result<()> {
+        // Log Success Metric
+        self.log_metric("remediation_success", if success { 1.0 } else { 0.0 })
+            .await?;
+
         // Log Latency Metric
-        let _ = self
-            .client
-            .post(&endpoint)
-            .json(&json!({
-                 "run_id": run_id,
-                 "key": "latency_ms",
-                 "value": latency as f64,
-                 "timestamp": chrono::Utc::now().timestamp_millis(),
-            }))
-            .send()
-            .await;
+        self.log_metric("latency_ms", latency_ms as f64).await?;
 
         Ok(())
     }
