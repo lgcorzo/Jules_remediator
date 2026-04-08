@@ -19,6 +19,7 @@ fn test_cluster_error_serialization() {
         id: Uuid::new_v4(),
         timestamp: Utc::now(),
         severity: Severity::Critical,
+        error_type: ErrorType::Unknown,
         resource: ClusterResource {
             kind: "Deployment".into(),
             name: "api-server".into(),

@@ -9,7 +9,7 @@ mockall::mock! {
     pub Remediator {}
     #[async_trait::async_trait]
     impl jules_remediator_rs::domain::services::Remediator for Remediator {
-        fn classify_error(&self, error: &ClusterError) -> bool;
+        fn classify_error(&self, error: &ClusterError) -> (bool, ErrorType);
         async fn propose_fix(&self, error: &ClusterError) -> Result<FixProposal>;
         async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome>;
     }

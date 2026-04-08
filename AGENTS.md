@@ -12,9 +12,8 @@ This repository is an autonomous factory for Kubernetes error remediation. The "
 
 - Always separate logic into `domain`, `application`, `infrastructure`, and `interface`.
 - **Domain** layer must be independent of any frameworks or libraries.
-- **Application** layer defines the use cases.
-- **Infrastructure** layer handles technology specifics.
-- **Interface** layer handles external communication (REST, CLI).
+- **Error Categorization**: Use the `ErrorType` enum (`Transient`, `Permanent`, `Unknown`) to decide on remediation.
+- **Domain Ports**: Use the `Tracker` trait for observability to keep the domain infrastructure-agnostic.
 
 ### 2. MLOps Standard 2026
 
