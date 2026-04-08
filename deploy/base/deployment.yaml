@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jules-remediator
+  namespace: jules-remediator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jules-remediator
+  template:
+    metadata:
+      labels:
+        app: jules-remediator
+    spec:
+      serviceAccountName: jules-remediator
+      containers:
+        - name: remediator
+          image: lgcorzo/jules-remediator-rs:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "15Mi"
+            requests:
+              cpu: "10m"
+              memory: "8Mi"
+          env:
+            - name: JULES_DISPATCHER_URI
+              value: "http://jules-cloud-vm.internal:8080/mcp"
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow.ml-system.svc.cluster.local:5000"
