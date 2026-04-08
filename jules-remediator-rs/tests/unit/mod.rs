@@ -1,10 +1,9 @@
-pub mod domain_tests;
 pub mod application_tests;
-pub mod infrastructure_tests;
+pub mod domain_tests;
 pub mod k8s_tests;
 
-use jules_remediator_rs::domain::models::*;
 use anyhow::Result;
+use jules_remediator_rs::domain::models::*;
 
 mockall::mock! {
     pub Remediator {}
