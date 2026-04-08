@@ -11,7 +11,8 @@ async fn test_handle_event_oomkilled() {
     let mut mock = MockRemediator::new();
 
     // We expect the workflow to be triggered for OOMKilled
-    mock.expect_classify_error().returning(|_| (true, ErrorType::Permanent));
+    mock.expect_classify_error()
+        .returning(|_| (true, ErrorType::Permanent));
     mock.expect_propose_fix()
         .returning(|_| Err(anyhow::anyhow!("stop here"))); // Stop after proposal for this test
 
