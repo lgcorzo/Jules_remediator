@@ -17,8 +17,8 @@ This document tracks the strategic phases and milestones for transitioning to a 
 - [x] Create Project Aethelgard Strategic Proposal.
 - [x] Establish Wiki Documentation Suite (MLOps 2026 Standards).
 - [x] Initial rebranding of documentation.
-- [ ] Setup Rust repository structure (`jules-remediator-rs`).
-- [ ] Configure FluxCD for the home lab cluster.
+- [x] Setup Rust repository structure (`jules-remediator-rs`).
+- [x] Configure FluxCD for the home lab cluster.
 
 ### Phase 2: MCP Integration
 - [ ] Implement ZeroClaw (The Orchestrator) in Rust.
@@ -30,7 +30,7 @@ This document tracks the strategic phases and milestones for transitioning to a 
 - [ ] Refine `AGENTS.md` instructions based on initial experiment data.
 - [ ] Integrate MLflow for performance tracking.
 
-### Phase 4: Dark Mode Deployment
+### Phase 4: Dark Mode Deployment (only in production)
 - [ ] Final security hardening & `SecurityValidator` audit.
 - [ ] Disable manual cluster write access.
 - [ ] Transition to 100% automated remediation ("Dark System").
