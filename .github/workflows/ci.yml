@@ -1,8 +1,9 @@
 name: Rust CI
 
 on:
-  push:
-    branches: [ main, "feat/**" ]
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
