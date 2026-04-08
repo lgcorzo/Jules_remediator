@@ -12,7 +12,9 @@ async fn test_workflow_full_cycle() {
     let proposal_id = Uuid::new_v4();
 
     // 1. Classification
-    mock.expect_classify_error().times(1).returning(|_| true);
+    mock.expect_classify_error()
+        .times(1)
+        .returning(|_| (true, ErrorType::Permanent));
 
     // 2. Proposal
     mock.expect_propose_fix().times(1).returning(move |_| {
@@ -54,7 +56,9 @@ async fn test_workflow_full_cycle() {
 async fn test_workflow_skips_non_remediable() {
     let mut mock = MockRemediator::new();
 
-    mock.expect_classify_error().times(1).returning(|_| false);
+    mock.expect_classify_error()
+        .times(1)
+        .returning(|_| (false, ErrorType::Transient));
 
     let workflow = RemediationWorkflow::new(Arc::new(mock));
     let error = create_test_error(Uuid::new_v4());
@@ -71,6 +75,7 @@ fn create_test_error(id: Uuid) -> ClusterError {
         id,
         timestamp: Utc::now(),
         severity: Severity::Medium,
+        error_type: ErrorType::Unknown,
         resource: ClusterResource {
             kind: "Pod".into(),
             name: "test-pod".into(),

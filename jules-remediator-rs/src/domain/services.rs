@@ -5,7 +5,8 @@ use anyhow::Result;
 #[async_trait::async_trait] // Added async_trait for better trait compatibility
 pub trait Remediator {
     /// Classifies an error event and determines if remediation is needed.
-    fn classify_error(&self, error: &ClusterError) -> bool;
+    /// Returns a tuple of (should_remediate, error_type).
+    fn classify_error(&self, error: &ClusterError) -> (bool, ErrorType);
 
     /// Proposes a fix for a given error event.
     async fn propose_fix(&self, error: &ClusterError) -> Result<FixProposal>;

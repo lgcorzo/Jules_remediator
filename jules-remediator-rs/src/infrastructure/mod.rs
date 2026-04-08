@@ -9,6 +9,7 @@ pub mod zeroclaw;
 pub use jules_dispatcher::JulesDispatcher;
 pub use k8s_watcher::K8sWatcher;
 pub use mlflow_logger::MlflowLogger;
+pub use orchestrator::{Orchestrator, OrchestratorImpl};
 pub use persistence::SurrealPersistence;
 pub use remediator_impl::RemediatorImpl;
 pub use zeroclaw::ZeroClaw;

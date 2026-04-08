@@ -1,4 +1,5 @@
 use crate::domain::models::*;
+use crate::domain::ports::Tracker;
 use crate::domain::services::Remediator;
 use crate::infrastructure::mlflow_logger::MlflowLogger;
 use crate::infrastructure::orchestrator::Orchestrator;
@@ -10,24 +11,25 @@ use std::sync::Arc;
 
 pub struct RemediatorImpl {
     zeroclaw: Arc<dyn Orchestrator>,
-    logger: Arc<MlflowLogger>,
+    tracker: Arc<dyn Tracker>,
     persistence: Arc<SurrealPersistence>,
 }
 
 impl RemediatorImpl {
     pub async fn new(_dispatcher_uri: &str, mlflow_uri: &str, db_path: &str) -> Result<Self> {
-        let zeroclaw = Arc::new(ZeroClaw::new()?);
-        Self::new_with_orchestrator(mlflow_uri, db_path, zeroclaw).await
+        let zeroclaw: Arc<dyn Orchestrator> = Arc::new(ZeroClaw::new()?);
+        let tracker: Arc<dyn Tracker> = Arc::new(MlflowLogger::new(mlflow_uri.into()));
+        Self::new_with_dependencies(db_path, zeroclaw, tracker).await
     }
 
-    pub async fn new_with_orchestrator(
-        mlflow_uri: &str,
+    pub async fn new_with_dependencies(
         db_path: &str,
         orchestrator: Arc<dyn Orchestrator>,
+        tracker: Arc<dyn Tracker>,
     ) -> Result<Self> {
         Ok(Self {
             zeroclaw: orchestrator,
-            logger: Arc::new(MlflowLogger::new(mlflow_uri.into())),
+            tracker,
             persistence: Arc::new(SurrealPersistence::new(db_path).await?),
         })
     }
@@ -35,14 +37,27 @@ impl RemediatorImpl {
 
 #[async_trait::async_trait]
 impl Remediator for RemediatorImpl {
-    fn classify_error(&self, error: &ClusterError) -> bool {
-        // Phase 2: Prioritize OOMKilled for self-healing loops.
-        // We also handle BackOff as potentially remediable.
-        let is_remediable = error.error_code == "OOMKilled" || error.error_code == "BackOff";
+    fn classify_error(&self, error: &ClusterError) -> (bool, ErrorType) {
+        // High-level categorization
+        let error_type = if error.error_code == "OOMKilled" {
+            ErrorType::Permanent
+        } else if error.error_code == "BackOff" || error.error_code == "CrashLoopBackOff" {
+            // CrashLoopBackOff can be transient (e.g. database not ready)
+            // or permanent (e.g. bad binary). For now we assume permanent for remediation.
+            ErrorType::Permanent
+        } else if error.message.contains("transient") || error.message.contains("timeout") {
+            ErrorType::Transient
+        } else {
+            ErrorType::Unknown
+        };
 
-        let is_structural = !error.message.contains("transient");
+        let should_remediate = match error_type {
+            ErrorType::Permanent => true,
+            ErrorType::Transient => false, // Don't remediate transient glitches automatically
+            ErrorType::Unknown => error.severity == Severity::Critical,
+        };
 
-        is_remediable && is_structural
+        (should_remediate, error_type)
     }
 
     async fn propose_fix(&self, error: &ClusterError) -> Result<FixProposal> {
@@ -80,12 +95,12 @@ impl Remediator for RemediatorImpl {
         let outcome = RemediationOutcome {
             proposal_id: proposal.proposal_id,
             success,
-            latency_ms: 1200, // Placeholder for actual timing
+            latency_ms: 1200, // Placeholder
             logs,
         };
 
         self.persistence.save_outcome(&outcome).await?;
-        self.logger
+        self.tracker
             .log_remediation(outcome.success, outcome.latency_ms)
             .await?;
 
@@ -96,8 +111,8 @@ impl Remediator for RemediatorImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::ports::MockTracker;
     use crate::infrastructure::orchestrator::MockOrchestrator;
-    use mockito::Server;
     use uuid::Uuid;
 
     fn create_test_error() -> ClusterError {
@@ -105,6 +120,7 @@ mod tests {
             id: Uuid::new_v4(),
             timestamp: chrono::Utc::now(),
             severity: Severity::High,
+            error_type: ErrorType::Unknown,
             resource: ClusterResource {
                 kind: "Deployment".into(),
                 name: "test-app".into(),
@@ -119,22 +135,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_remediator_impl_integration() {
-        let mut server = Server::new_async().await;
-
-        // Mock for MLflow run creation
-        server
-            .mock("POST", "/api/2.0/mlflow/runs/create")
-            .with_status(200)
-            .with_body(r#"{"run": {"info": {"run_id": "test-run-id"}}}"#)
-            .create_async()
-            .await;
-
-        // Mock for MLflow logging during execution
-        server
-            .mock("POST", "/api/2.0/mlflow/runs/log-metric")
-            .with_status(200)
-            .create_async()
-            .await;
+        // Mock for Tracker
+        let mut mock_tracker = MockTracker::new();
+        mock_tracker
+            .expect_log_remediation()
+            .returning(|_, _| Ok(()));
 
         // Mock for Orchestrator
         let mut mock_orch = MockOrchestrator::new();
@@ -155,10 +160,13 @@ mod tests {
                 })
             });
 
-        let remediator =
-            RemediatorImpl::new_with_orchestrator(&server.url(), "mem://", Arc::new(mock_orch))
-                .await
-                .unwrap();
+        let remediator = RemediatorImpl::new_with_dependencies(
+            "mem://",
+            Arc::new(mock_orch),
+            Arc::new(mock_tracker),
+        )
+        .await
+        .unwrap();
 
         let proposal: FixProposal = remediator.propose_fix(&error).await.unwrap();
         assert_eq!(proposal.error_id, error_id);
@@ -169,18 +177,36 @@ mod tests {
 
     #[tokio::test]
     async fn test_classify_error_logic() {
-        let server = Server::new_async().await;
-        let remediator = RemediatorImpl::new(&server.url(), &server.url(), "mem://")
-            .await
-            .unwrap();
+        let mock_tracker = MockTracker::new();
+        let mock_orch = MockOrchestrator::new();
+
+        let remediator = RemediatorImpl::new_with_dependencies(
+            "mem://",
+            Arc::new(mock_orch),
+            Arc::new(mock_tracker),
+        )
+        .await
+        .unwrap();
 
         let mut error = create_test_error();
+
+        // Permanent Error (OOMKilled)
         error.error_code = "OOMKilled".into();
-        error.message = "Memory limit exceeded".into();
+        let (should, etype) = remediator.classify_error(&error);
+        assert!(should);
+        assert_eq!(etype, ErrorType::Permanent);
 
-        assert!(remediator.classify_error(&error));
+        // Permanent Error (CrashLoopBackOff)
+        error.error_code = "CrashLoopBackOff".into();
+        let (should, etype) = remediator.classify_error(&error);
+        assert!(should);
+        assert_eq!(etype, ErrorType::Permanent);
 
-        error.message = "transient network error".into();
-        assert!(!remediator.classify_error(&error));
+        // Transient Error
+        error.error_code = "ErrImagePull".into();
+        error.message = "transient network timeout".into();
+        let (should, etype) = remediator.classify_error(&error);
+        assert!(!should);
+        assert_eq!(etype, ErrorType::Transient);
     }
 }
