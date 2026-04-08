@@ -1,5 +1,6 @@
 use crate::unit::MockRemediator;
 use jules_remediator_rs::application::RemediationWorkflow;
+use jules_remediator_rs::domain::models::*;
 use jules_remediator_rs::infrastructure::K8sWatcher;
 use k8s_openapi::api::core::v1::{Event, ObjectReference};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -10,7 +11,8 @@ async fn test_handle_event_oomkilled() {
     let mut mock = MockRemediator::new();
 
     // We expect the workflow to be triggered for OOMKilled
-    mock.expect_classify_error().returning(|_| true);
+    mock.expect_classify_error()
+        .returning(|_| (true, ErrorType::Permanent));
     mock.expect_propose_fix()
         .returning(|_| Err(anyhow::anyhow!("stop here"))); // Stop after proposal for this test
 

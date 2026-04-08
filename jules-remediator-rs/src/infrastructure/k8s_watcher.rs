@@ -73,6 +73,7 @@ impl K8sWatcher {
                     id: Uuid::new_v4(),
                     timestamp: chrono::Utc::now(),
                     severity: Severity::High,
+                    error_type: ErrorType::Unknown,
                     resource: ClusterResource {
                         kind: e.involved_object.kind.clone().unwrap_or_default(),
                         name: e.involved_object.name.clone().unwrap_or_default(),
