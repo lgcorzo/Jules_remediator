@@ -30,7 +30,7 @@ This document tracks the strategic phases and milestones for transitioning to a 
 - [ ] Refine `AGENTS.md` instructions based on initial experiment data.
 - [ ] Integrate MLflow for performance tracking.
 
-### Phase 4: Dark Mode Deployment
+### Phase 4: Dark Mode Deployment (only in production)
 - [ ] Final security hardening & `SecurityValidator` audit.
 - [ ] Disable manual cluster write access.
 - [ ] Transition to 100% automated remediation ("Dark System").
