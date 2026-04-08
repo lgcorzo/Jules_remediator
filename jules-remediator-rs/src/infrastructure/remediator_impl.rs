@@ -122,7 +122,8 @@ mod tests {
         let mut server = Server::new_async().await;
 
         // Mock for MLflow run creation
-        server.mock("POST", "/api/2.0/mlflow/runs/create")
+        server
+            .mock("POST", "/api/2.0/mlflow/runs/create")
             .with_status(200)
             .with_body(r#"{"run": {"info": {"run_id": "test-run-id"}}}"#)
             .create_async()
