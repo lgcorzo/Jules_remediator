@@ -20,6 +20,11 @@ impl K8sWatcher {
         Ok(Self { client })
     }
 
+    /// Internal constructor for testing or custom configuration.
+    pub fn with_client(client: Client) -> Self {
+        Self { client }
+    }
+
     /// Monitors events and triggers the remediation workflow.
     pub async fn run<R: Remediator + 'static>(
         &self,
@@ -35,7 +40,7 @@ impl K8sWatcher {
             match event {
                 Ok(kube::runtime::watcher::Event::Apply(e))
                 | Ok(kube::runtime::watcher::Event::InitApply(e)) => {
-                    self.process_event(e, workflow.clone()).await?;
+                    Self::handle_event_logic(e, workflow.clone()).await?;
                 }
                 Ok(kube::runtime::watcher::Event::Init) => {
                     println!("[Watcher] Initializing event sync...");
@@ -50,8 +55,7 @@ impl K8sWatcher {
         Ok(())
     }
 
-    async fn process_event<R: Remediator + 'static>(
-        &self,
+    pub async fn handle_event_logic<R: Remediator + 'static>(
         e: Event,
         workflow: Arc<RemediationWorkflow<R>>,
     ) -> Result<()> {
