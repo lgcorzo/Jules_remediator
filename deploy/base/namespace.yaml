@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jules-remediator
+  labels:
+    app.kubernetes.io/name: jules-remediator
+    aethelgard.io/phase: foundation
