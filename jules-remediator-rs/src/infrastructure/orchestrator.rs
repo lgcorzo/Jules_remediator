@@ -26,12 +26,12 @@ impl Orchestrator for OrchestratorImpl {
         // Implementation of the actual call to Jules via ZeroClaw/MCP
         // For Phase 2, we mocked this, but now we'll provide the real structure
         // In a real scenario, this would use reqwest to call dispatcher_uri
-        
+
         println!(
             "[Orchestrator] Calling Jules at {} for error: {}",
             self.dispatcher_uri, error.id
         );
-        
+
         // Mocking the call for now until we have the full MCP client integrated
         Ok(FixProposal {
             error_id: error.id,

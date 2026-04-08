@@ -20,12 +20,9 @@ async fn main() -> Result<()> {
     // Layer 1: Infrastructure (Adapters)
     let orchestrator: Arc<dyn Orchestrator> = Arc::new(OrchestratorImpl::new(&dispatcher_uri));
     let tracker: Arc<dyn Tracker> = Arc::new(MlflowLogger::new(mlflow_uri));
-    
-    let remediator = Arc::new(RemediatorImpl::new_with_dependencies(
-        db_path,
-        orchestrator,
-        tracker,
-    ).await?);
+
+    let remediator =
+        Arc::new(RemediatorImpl::new_with_dependencies(db_path, orchestrator, tracker).await?);
 
     // Layer 2: Application (Use Case)
     let workflow = Arc::new(RemediationWorkflow::new(remediator.clone()));

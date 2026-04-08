@@ -1,6 +1,6 @@
 use crate::domain::models::*;
-use crate::domain::services::Remediator;
 use crate::domain::ports::Tracker;
+use crate::domain::services::Remediator;
 use crate::infrastructure::mlflow_logger::MlflowLogger;
 use crate::infrastructure::orchestrator::Orchestrator;
 use crate::infrastructure::persistence::SurrealPersistence;
@@ -111,9 +111,8 @@ impl Remediator for RemediatorImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::orchestrator::MockOrchestrator;
     use crate::domain::ports::MockTracker;
-    use mockito::Server;
+    use crate::infrastructure::orchestrator::MockOrchestrator;
     use uuid::Uuid;
 
     fn create_test_error() -> ClusterError {
@@ -138,7 +137,8 @@ mod tests {
     async fn test_remediator_impl_integration() {
         // Mock for Tracker
         let mut mock_tracker = MockTracker::new();
-        mock_tracker.expect_log_remediation()
+        mock_tracker
+            .expect_log_remediation()
             .returning(|_, _| Ok(()));
 
         // Mock for Orchestrator
@@ -146,7 +146,8 @@ mod tests {
         let error = create_test_error();
         let error_id = error.id;
 
-        mock_orch.expect_orchestrate_remediation()
+        mock_orch
+            .expect_orchestrate_remediation()
             .returning(move |e| {
                 Ok(FixProposal {
                     error_id: e.id,
@@ -162,7 +163,7 @@ mod tests {
         let remediator = RemediatorImpl::new_with_dependencies(
             "mem://",
             Arc::new(mock_orch),
-            Arc::new(mock_tracker)
+            Arc::new(mock_tracker),
         )
         .await
         .unwrap();
@@ -176,19 +177,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_classify_error_logic() {
-        let mut mock_tracker = MockTracker::new();
-        let mut mock_orch = MockOrchestrator::new();
-        
+        let mock_tracker = MockTracker::new();
+        let mock_orch = MockOrchestrator::new();
+
         let remediator = RemediatorImpl::new_with_dependencies(
             "mem://",
             Arc::new(mock_orch),
-            Arc::new(mock_tracker)
+            Arc::new(mock_tracker),
         )
         .await
         .unwrap();
 
         let mut error = create_test_error();
-        
+
         // Permanent Error (OOMKilled)
         error.error_code = "OOMKilled".into();
         let (should, etype) = remediator.classify_error(&error);

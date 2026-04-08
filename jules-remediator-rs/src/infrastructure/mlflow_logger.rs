@@ -1,5 +1,5 @@
 use crate::domain::ports::Tracker;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
