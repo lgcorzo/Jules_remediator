@@ -30,3 +30,10 @@ spec:
               value: "http://jules-cloud-vm.internal:8080/mcp"
             - name: MLFLOW_TRACKING_URI
               value: "http://mlflow.ml-system.svc.cluster.local:5000"
+            - name: JULES_CLI_PATH
+              value: "/usr/local/bin/jules-cli"
+            - name: JULES_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jules-api-key
+                  key: api-key
