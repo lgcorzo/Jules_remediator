@@ -19,7 +19,7 @@ spec:
       serviceAccountName: jules-remediator
       containers:
         - name: remediator
-          image: lgcorzo/jules-remediator-rs:latest
+          image: lgcorzo/jules-remediator:latest
           imagePullPolicy: Always
           resources:
             limits:
