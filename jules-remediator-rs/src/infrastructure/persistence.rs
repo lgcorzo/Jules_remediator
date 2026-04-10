@@ -19,13 +19,19 @@ impl SurrealPersistence {
     }
 
     pub async fn save_error(&self, error: &ClusterError) -> Result<()> {
-        let mut errors = self.errors.write().unwrap();
+        let mut errors = self
+            .errors
+            .write()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock on errors: {}", e))?;
         errors.insert(error.id, error.clone());
         Ok(())
     }
 
     pub async fn save_outcome(&self, outcome: &RemediationOutcome) -> Result<()> {
-        let mut outcomes = self.outcomes.write().unwrap();
+        let mut outcomes = self
+            .outcomes
+            .write()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock on outcomes: {}", e))?;
         outcomes.insert(outcome.proposal_id, outcome.clone());
         Ok(())
     }
