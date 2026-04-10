@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: jules-remediator
   namespace: jules-remediator
+  labels:
+    app.kubernetes.io/name: jules-remediator
+    app.kubernetes.io/part-of: aethelgard
 spec:
   replicas: 1
   selector:
@@ -29,7 +32,7 @@ spec:
             - name: JULES_DISPATCHER_URI
               value: "http://jules-cloud-vm.internal:8080/mcp"
             - name: MLFLOW_TRACKING_URI
-              value: "http://mlflow.ml-system.svc.cluster.local:5000"
+              value: "http://mlflow.llm-apps.svc.cluster.local:5000"
             - name: JULES_CLI_PATH
               value: "/usr/local/bin/jules-cli"
             - name: JULES_API_KEY
