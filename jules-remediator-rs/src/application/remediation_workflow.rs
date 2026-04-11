@@ -17,15 +17,20 @@ impl<R: Remediator> RemediationWorkflow<R> {
     pub async fn handle_error(&self, error: ClusterError) -> Result<Option<RemediationOutcome>> {
         println!("[Remediator] Processing event: {}", error.id);
 
-        if !self.remediator.classify_error(&error) {
+        let (should_remediate, error_type) = self.remediator.classify_error(&error);
+
+        if !should_remediate {
             println!(
-                "[Remediator] Error {} classified as non-remediable or transient.",
-                error.id
+                "[Remediator] Error {} classified as {:?}. Skipping remediation.",
+                error.id, error_type
             );
             return Ok(None);
         }
 
-        println!("[Remediator] Proposing fix for error: {}", error.id);
+        println!(
+            "[Remediator] Proposing fix for {:?} error: {}",
+            error_type, error.id
+        );
         let proposal = self
             .remediator
             .propose_fix(&error)
@@ -73,7 +78,8 @@ mod tests {
         let proposal_id = Uuid::new_v4();
 
         // 1. Classification
-        mock.expect_classify_error().returning(|_| true);
+        mock.expect_classify_error()
+            .returning(|_| (true, ErrorType::Permanent));
 
         // 2. Proposal
         mock.expect_propose_fix().returning(move |_| {
@@ -126,7 +132,8 @@ mod tests {
     async fn test_handle_error_security_fail() {
         let mut mock = MockRemediator::new();
         // Proposal with injection
-        mock.expect_classify_error().returning(|_| true);
+        mock.expect_classify_error()
+            .returning(|_| (true, ErrorType::Permanent));
         mock.expect_propose_fix().returning(|_| {
             Ok(FixProposal {
                 error_id: Uuid::new_v4(),
