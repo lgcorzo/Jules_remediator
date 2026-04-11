@@ -17,20 +17,15 @@ impl<R: Remediator> RemediationWorkflow<R> {
     pub async fn handle_error(&self, error: ClusterError) -> Result<Option<RemediationOutcome>> {
         println!("[Remediator] Processing event: {}", error.id);
 
-        let (should_remediate, error_type) = self.remediator.classify_error(&error);
-
-        if !should_remediate {
+        if !self.remediator.classify_error(&error) {
             println!(
-                "[Remediator] Error {} classified as {:?}. Skipping remediation.",
-                error.id, error_type
+                "[Remediator] Error {} classified as non-remediable or transient.",
+                error.id
             );
             return Ok(None);
         }
 
-        println!(
-            "[Remediator] Proposing fix for {:?} error: {}",
-            error_type, error.id
-        );
+        println!("[Remediator] Proposing fix for error: {}", error.id);
         let proposal = self
             .remediator
             .propose_fix(&error)
@@ -78,8 +73,7 @@ mod tests {
         let proposal_id = Uuid::new_v4();
 
         // 1. Classification
-        mock.expect_classify_error()
-            .returning(|_| (true, ErrorType::Permanent));
+        mock.expect_classify_error().returning(|_| true);
 
         // 2. Proposal
         mock.expect_propose_fix().returning(move |_| {
@@ -109,7 +103,7 @@ mod tests {
             id: error_id,
             timestamp: Utc::now(),
             severity: Severity::Medium,
-            error_type: "Structural".into(),
+            error_type: ErrorType::Structural,
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "foo".into(),
@@ -132,8 +126,7 @@ mod tests {
     async fn test_handle_error_security_fail() {
         let mut mock = MockRemediator::new();
         // Proposal with injection
-        mock.expect_classify_error()
-            .returning(|_| (true, ErrorType::Permanent));
+        mock.expect_classify_error().returning(|_| true);
         mock.expect_propose_fix().returning(|_| {
             Ok(FixProposal {
                 error_id: Uuid::new_v4(),
@@ -151,7 +144,7 @@ mod tests {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
             severity: Severity::Medium,
-            error_type: "Structural".into(),
+            error_type: ErrorType::Structural,
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "foo".into(),
