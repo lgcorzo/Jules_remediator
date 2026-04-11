@@ -19,19 +19,13 @@ impl SurrealPersistence {
     }
 
     pub async fn save_error(&self, error: &ClusterError) -> Result<()> {
-        let mut errors = self
-            .errors
-            .write()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock on errors: {}", e))?;
+        let mut errors = self.errors.write().unwrap();
         errors.insert(error.id, error.clone());
         Ok(())
     }
 
     pub async fn save_outcome(&self, outcome: &RemediationOutcome) -> Result<()> {
-        let mut outcomes = self
-            .outcomes
-            .write()
-            .map_err(|e| anyhow::anyhow!("Failed to acquire write lock on outcomes: {}", e))?;
+        let mut outcomes = self.outcomes.write().unwrap();
         outcomes.insert(outcome.proposal_id, outcome.clone());
         Ok(())
     }
@@ -55,7 +49,7 @@ mod tests {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
             severity: Severity::High,
-            error_type: "Structural".into(),
+            error_type: ErrorType::Structural,
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "test-pod".into(),

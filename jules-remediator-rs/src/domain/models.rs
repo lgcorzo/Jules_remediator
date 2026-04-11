@@ -4,19 +4,19 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+pub enum ErrorType {
+    Structural,
+    Transient,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     Low,
     Medium,
     High,
     Critical,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum ErrorType {
-    Transient,
-    Permanent,
-    Unknown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +32,7 @@ pub struct ClusterError {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub severity: Severity,
-    pub error_type: String,
+    pub error_type: ErrorType,
     pub resource: ClusterResource,
     pub message: String,
     pub error_code: String,
