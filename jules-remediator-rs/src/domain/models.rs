@@ -11,6 +11,14 @@ pub enum Severity {
     Critical,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ErrorType {
+    Transient,
+    Permanent,
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterResource {
     pub kind: String,

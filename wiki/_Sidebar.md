@@ -2,15 +2,15 @@
 
 ## 📜 Strategy
 
-* [Aethelgard Proposal](Aethelgard-Proposal)
-* [Business Case](Business-Case)
-* [Project Requirements](Project-Requirements)
+* [Aethelgard Proposal](Aethelgard_Proposal)
+* [Business Case](Business_Case)
+* [Project Requirements](Project_Requirements)
 
 ## 🏗️ Technical Design
 
-* [Solution Architecture](Solution-Architecture)
-* [Data Architecture](Data-Architecture)
-* [LLMOps Process](LLMops-Process)
+* [Solution Architecture](Solution_Architecture)
+* [Data Architecture](Data_Architecture)
+* [LLMOps Process](LLMops_Process)
 - [Remediation Workflow](Remediation_Workflow)
 
 ### Safety & Quality

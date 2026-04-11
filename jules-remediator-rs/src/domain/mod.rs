@@ -1,4 +1,5 @@
 pub mod models;
+pub mod ports;
 pub mod security;
 pub mod services;
 
