@@ -103,6 +103,7 @@ mod tests {
             id: error_id,
             timestamp: Utc::now(),
             severity: Severity::Medium,
+            error_type: "Structural".into(),
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "foo".into(),
@@ -143,6 +144,7 @@ mod tests {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
             severity: Severity::Medium,
+            error_type: "Structural".into(),
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "foo".into(),

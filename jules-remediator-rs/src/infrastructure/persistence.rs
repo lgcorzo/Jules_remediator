@@ -49,6 +49,7 @@ mod tests {
             id: Uuid::new_v4(),
             timestamp: Utc::now(),
             severity: Severity::High,
+            error_type: "Structural".into(),
             resource: ClusterResource {
                 kind: "Pod".into(),
                 name: "test-pod".into(),

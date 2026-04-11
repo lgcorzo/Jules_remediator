@@ -24,6 +24,7 @@ pub struct ClusterError {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub severity: Severity,
+    pub error_type: String,
     pub resource: ClusterResource,
     pub message: String,
     pub error_code: String,
