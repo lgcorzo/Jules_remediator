@@ -1,31 +1,29 @@
 # Project Aethelgard 🏰
 
+* [🏠 Home](Home)
+
 ## 📜 Strategy
 
-* [Aethelgard Proposal](Aethelgard-Proposal)
-* [Business Case](Business-Case)
-* [Project Requirements](Project-Requirements)
+* [Aethelgard Proposal](Aethelgard_Proposal)
+* [Business Case](Business_Case)
+* [Project Requirements](Project_Requirements)
+* [Project Planning](Planning)
 
 ## 🏗️ Technical Design
 
-* [Solution Architecture](Solution-Architecture)
-* [Data Architecture](Data-Architecture)
-* [LLMOps Process](LLMops-Process)
-- [Remediation Workflow](Remediation_Workflow)
+* [Solution Architecture](Solution_Architecture)
+* [Data Architecture](Data_Architecture)
+* [LLMOps Process](LLMops_Process)
+* [Remediation Workflow](Remediation_Workflow)
 
-### Safety & Quality
-- [Security Strategy](Security_Strategy)
-- [Test Strategy](Test_Strategy)
+### 🛡️ Safety & Quality
 
-### Project Scope
-- [Business Case](Business_Case)
-- [Project Requirements](Project_Requirements)
+* [Security Strategy](Security_Strategy)
+* [Test Strategy](Test_Strategy)
 
-### Standards
-- [LLMOps Standard 2026](LLMOps_Standard_2026)
+### 📏 Standards
 
-### Advances
-- [Project Planning](Planning)
+* [LLMOps Standard 2026](LLMOps_Standard_2026)
 
 ---
 *Powered by Jules Remediator Factory*
