@@ -31,7 +31,7 @@ The configuration can be found in [ml/experiments/tracking.py](file:///mnt/F024B
 
 ## Kubernetes & GitOps
 
-The system is designed for deployment via **FluxCD** with automated synchronization. Local manifests are in [k8s/base/](file:///mnt/F024B17C24B145FE/Repos/Jules_remediator/k8s/base/).
+The system is designed for deployment via **FluxCD** with automated synchronization. Local manifests are in [k8s/base/remediator-deployment.yaml](file:///mnt/F024B17C24B145FE/Repos/Jules_remediator/k8s/base/remediator-deployment.yaml).
 
 ## Verification Results
 
