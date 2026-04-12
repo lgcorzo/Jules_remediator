@@ -1,0 +1,7 @@
+target/
+.git/
+.github/
+.vscode/
+*.pdb
+*.obj
+*.exe
