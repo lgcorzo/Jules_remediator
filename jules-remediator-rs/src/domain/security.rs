@@ -16,8 +16,17 @@ impl SecurityValidator {
             Self::validate_command(command)?;
         }
 
-        // Basic validation for code changes to prevent destructive actions
-        let dangerous_patterns = ["rm -rf", "mkfs", "dd if=", "shred", "format"];
+        // Basic validation for code changes to prevent destructive actions and insecure configurations
+        let dangerous_patterns = [
+            "rm -rf",
+            "mkfs",
+            "dd if=",
+            "shred",
+            "format",
+            "privileged: true",
+            "hostNetwork: true",
+            "runAsUser: 0",
+        ];
         for pattern in dangerous_patterns {
             if proposal.code_change.contains(pattern) {
                 bail!(
@@ -31,8 +40,8 @@ impl SecurityValidator {
     }
 
     fn validate_command(command: &str) -> Result<()> {
-        // Block command chaining and shell metacharacters
-        let restricted_patterns = ["&&", ";", "|", ">", "<", "$(", "`", "\\", "\n", "\r"];
+        // Block command chaining, backgrounding, and shell metacharacters/expansions
+        let restricted_patterns = ["&&", ";", "|", ">", "<", "$", "`", "\\", "\n", "\r", "&"];
 
         for pattern in restricted_patterns {
             if command.contains(pattern) {
@@ -43,14 +52,24 @@ impl SecurityValidator {
             }
         }
 
-        // Block dangerous kubectl flags that could be used for privilege escalation or credential theft
+        // Block dangerous kubectl flags that could be used for privilege escalation,
+        // credential theft, or bypassing restricted file access.
         let dangerous_flags = [
             "--kubeconfig",
             "--token",
             "--server",
             "--certificate-authority",
+            "--as",
+            "--as-group",
+            "--client-certificate",
+            "--client-key",
+            "--username",
+            "--password",
+            "--patch-file",
         ];
         for flag in dangerous_flags {
+            // Check for flag with boundary to prevent false positives if any,
+            // but simple contains is generally safer for security.
             if command.contains(flag) {
                 bail!(
                     "Security Violation: Dangerous kubectl flag '{}' is prohibited",
@@ -59,7 +78,7 @@ impl SecurityValidator {
             }
         }
 
-        // Ensure command starts with known safe tools
+        // Ensure command starts with known safe tools and respect word boundaries
         let safe_prefixes = [
             "kubectl patch",
             "kubectl label",
@@ -69,7 +88,7 @@ impl SecurityValidator {
         ];
         let is_safe = safe_prefixes
             .iter()
-            .any(|prefix| command.starts_with(prefix));
+            .any(|prefix| command == *prefix || command.starts_with(&format!("{} ", prefix)));
 
         if !is_safe {
             bail!("Security Violation: Command prefix not in safe list");
@@ -223,5 +242,75 @@ mod tests {
             remediation_command: Some("kubectl scale deployment foo --replicas=3".into()),
         };
         assert!(SecurityValidator::validate_proposal(&proposal).is_ok());
+    }
+
+    #[test]
+    fn test_dollar_injection() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            code_change: "".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: Some("kubectl patch deployment foo -p ${DANGEROUS}".into()),
+        };
+        assert!(SecurityValidator::validate_proposal(&proposal).is_err());
+    }
+
+    #[test]
+    fn test_background_injection() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            code_change: "".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: Some("kubectl patch deployment foo & rm -rf /".into()),
+        };
+        assert!(SecurityValidator::validate_proposal(&proposal).is_err());
+    }
+
+    #[test]
+    fn test_impersonation_flag() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            code_change: "".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: Some("kubectl patch deployment foo --as=admin".into()),
+        };
+        assert!(SecurityValidator::validate_proposal(&proposal).is_err());
+    }
+
+    #[test]
+    fn test_prefix_bypass_attempt() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            code_change: "".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: Some("kubectl patch-internal-stuff deployment foo".into()),
+        };
+        assert!(SecurityValidator::validate_proposal(&proposal).is_err());
+    }
+
+    #[test]
+    fn test_insecure_k8s_config() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            code_change: "privileged: true".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: None,
+        };
+        assert!(SecurityValidator::validate_proposal(&proposal).is_err());
     }
 }
