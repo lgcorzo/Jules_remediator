@@ -72,3 +72,8 @@
 **Vulnerability:** `ProxyHeadersMiddleware` was configured using `ALLOWED_HOSTS` instead of a separate list of trusted proxy IPs. Since `ALLOWED_HOSTS` usually contains domain names (or `*`), this causes the middleware to either fail or blindly trust all `X-Forwarded-For` headers, leading to IP Spoofing.
 **Learning:** `TrustedHostMiddleware` uses domain names to validate the HTTP `Host` header, whereas `ProxyHeadersMiddleware` requires the IP addresses of trusted upstream proxies to securely parse `X-Forwarded-For`. Reusing the same variable conflates these two distinct security mechanisms.
 **Prevention:** Always define a separate `TRUSTED_PROXIES` configuration variable (defaulting to `127.0.0.1`) specifically for `ProxyHeadersMiddleware`.
+
+## 2027-05-20 - Command Prefix Validation Bypass
+**Vulnerability:** Command whitelisting using simple string prefix matching (e.g., `command.starts_with("kubectl patch")`) allowed bypasses like `kubectl patch-internal-stuff`.
+**Learning:** When validating command prefixes, it is critical to ensure that the prefix is followed by a word boundary (like a space) or is the entire string, to prevent matching similar-looking but unauthorized subcommands.
+**Prevention:** Use boundary-aware prefix matching: `command == prefix || command.starts_with(&(prefix.to_string() + " "))`.
