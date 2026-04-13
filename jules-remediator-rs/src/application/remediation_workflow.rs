@@ -24,18 +24,28 @@ impl<R: Remediator> RemediationWorkflow<R> {
         // --- Startup Orchestration ---
         let startup_state = self.remediator.get_startup_state().await?;
         #[allow(clippy::collapsible_if)]
-        if matches!(startup_state.phase, StartupPhase::Initial | StartupPhase::InProcess) {
-            if let Some(dep) = self.remediator.check_startup_dependency(&error.resource).await? {
-                println!("[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...", error.resource.name, dep);
-                
+        if matches!(
+            startup_state.phase,
+            StartupPhase::Initial | StartupPhase::InProcess
+        ) {
+            if let Some(dep) = self
+                .remediator
+                .check_startup_dependency(&error.resource)
+                .await?
+            {
+                println!(
+                    "[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...",
+                    error.resource.name, dep
+                );
+
                 // Orchestrate: Pause this resource until dependency is ready
                 self.remediator.pause_resource(&error.resource).await?;
-                
+
                 // (Logic to wait for dep or just exit and let the next event retry)
                 // For now, we resume as a placeholder or exit to let K8s retry later
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                 self.remediator.resume_resource(&error.resource).await?;
-                
+
                 return Ok(None); // Let the next event trigger logic if it still fails
             }
         }
@@ -60,28 +70,34 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
             if is_healthy {
                 println!("[Workflow] Resource is healthy after attempt {}.", attempts);
-                
+
                 // If there's a permanent code change proposed, commit it now.
                 if !proposal.code_change.is_empty() {
                     println!("[Workflow] Creating GitOps PR for verified solution...");
                     self.remediator.create_gitops_pr(&proposal).await?;
                 }
-                
+
                 return Ok(Some(outcome));
             }
 
             if attempts >= max_attempts {
-                println!("[Workflow] Max attempts reached for session {}.", session_id);
+                println!(
+                    "[Workflow] Max attempts reached for session {}.",
+                    session_id
+                );
                 return Ok(Some(outcome));
             }
 
             // Failure: Provide feedback to Jules
             let feedback = format!(
                 "Command '{}' executed but resource is still unhealthy.\nLogs:\n{}",
-                proposal.remediation_command.clone().unwrap_or_else(|| "none".into()),
+                proposal
+                    .remediation_command
+                    .clone()
+                    .unwrap_or_else(|| "none".into()),
                 outcome.logs
             );
-            
+
             println!("[Workflow] Feedback to Jules: {}", feedback);
             proposal = self.remediator.refine_fix(session_id, &feedback).await?;
         }
@@ -106,11 +122,13 @@ mod tests {
         mock.expect_classify_error().returning(|_| true);
 
         // Startup State (Normal)
-        mock.expect_get_startup_state().returning(|| Ok(ClusterStartupState {
-            phase: StartupPhase::Stabilized,
-            event_count: 100,
-            start_time: Utc::now(),
-        }));
+        mock.expect_get_startup_state().returning(|| {
+            Ok(ClusterStartupState {
+                phase: StartupPhase::Stabilized,
+                event_count: 100,
+                start_time: Utc::now(),
+            })
+        });
 
         // Proposal
         mock.expect_propose_fix().returning(move |_| {
@@ -172,15 +190,18 @@ mod tests {
         mock.expect_classify_error().returning(|_| true);
 
         // Simulate Initial Startup
-        mock.expect_get_startup_state().returning(|| Ok(ClusterStartupState {
-            phase: StartupPhase::Initial,
-            event_count: 2,
-            start_time: Utc::now(),
-        }));
+        mock.expect_get_startup_state().returning(|| {
+            Ok(ClusterStartupState {
+                phase: StartupPhase::Initial,
+                event_count: 2,
+                start_time: Utc::now(),
+            })
+        });
 
         // Detect dependency
-        mock.expect_check_startup_dependency().returning(|_| Ok(Some("db".into())));
-        
+        mock.expect_check_startup_dependency()
+            .returning(|_| Ok(Some("db".into())));
+
         // Expect pause and resume
         mock.expect_pause_resource().returning(|_| Ok(()));
         mock.expect_resume_resource().returning(|_| Ok(()));

@@ -147,7 +147,7 @@ mod tests {
 
         persistence.save_startup_event(&event).await.unwrap();
         let timeline = persistence.get_startup_timeline().await.unwrap();
-        
+
         assert_eq!(timeline.len(), 1);
         assert_eq!(timeline[0].status, "Ready");
         assert_eq!(timeline[0].resource.name, "test-pod");
@@ -165,7 +165,7 @@ mod tests {
 
         persistence.save_message(&msg).await.unwrap();
         let history = persistence.get_messages(msg.session_id).await.unwrap();
-        
+
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].content, "test message");
     }
