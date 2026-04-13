@@ -12,4 +12,25 @@ pub trait Remediator {
 
     /// Executes a remediation fix.
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome>;
+
+    /// Refines a fix based on feedback from a previous attempt.
+    async fn refine_fix(&self, session_id: Uuid, feedback: &str) -> Result<FixProposal>;
+
+    /// Verifies if the resource is healthy.
+    async fn verify_resource(&self, resource: &ClusterResource) -> Result<bool>;
+
+    /// Creates a PR in the GitOps repository for a verified solution.
+    async fn create_gitops_pr(&self, proposal: &FixProposal) -> Result<()>;
+
+    /// Gets the current startup state of the cluster.
+    async fn get_startup_state(&self) -> Result<ClusterStartupState>;
+
+    /// Pauses a resource (e.g. scale to 0) to wait for dependencies.
+    async fn pause_resource(&self, resource: &ClusterResource) -> Result<()>;
+
+    /// Resumes a resource (e.g. restore replicas).
+    async fn resume_resource(&self, resource: &ClusterResource) -> Result<()>;
+
+    /// Identifies if a resource is waiting for a dependency.
+    async fn check_startup_dependency(&self, resource: &ClusterResource) -> Result<Option<String>>;
 }

@@ -13,15 +13,18 @@ async fn main() -> Result<()> {
     let mlflow_uri = std::env::var("MLFLOW_TRACKING_URI")
         .unwrap_or_else(|_| "http://mlflow.ml-system.svc.cluster.local:5000".into());
     let db_path = "surreal.db";
+    let git_repo_path = std::env::var("GITOPS_REPO_PATH")
+        .unwrap_or_else(|_| "/mnt/F024B17C24B145FE/Repos/gitops_internal_lgcorzo".into());
 
     // Layer 1: Infrastructure (Adapters)
-    let remediator = Arc::new(RemediatorImpl::new(&dispatcher_uri, &mlflow_uri, db_path).await?);
+    let remediator = Arc::new(RemediatorImpl::new(&dispatcher_uri, &mlflow_uri, db_path, &git_repo_path).await?);
+    let startup_monitor = remediator.get_startup_monitor();
 
     // Layer 2: Application (Use Case)
     let workflow = Arc::new(RemediationWorkflow::new(remediator.clone()));
 
     // Layer 3: Watcher Loop (Primary Adapter)
-    let watcher = K8sWatcher::new().await?;
+    let watcher = K8sWatcher::new(Some(startup_monitor)).await?;
     watcher.run(workflow).await?;
 
     Ok(())

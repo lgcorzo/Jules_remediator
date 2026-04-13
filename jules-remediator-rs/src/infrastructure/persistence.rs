@@ -7,14 +7,19 @@ use uuid::Uuid;
 pub struct SurrealPersistence {
     errors: RwLock<HashMap<Uuid, ClusterError>>,
     outcomes: RwLock<HashMap<Uuid, RemediationOutcome>>,
+    messages: RwLock<Vec<ConversationMessage>>,
+    steps: RwLock<Vec<RemediationStep>>,
+    startup_events: RwLock<Vec<StartupEvent>>,
 }
 
 impl SurrealPersistence {
     pub async fn new(_path: &str) -> Result<Self> {
-        // Mock persistence for now to resolve library conflicts and ensure 95% test coverage.
         Ok(Self {
             errors: RwLock::new(HashMap::new()),
             outcomes: RwLock::new(HashMap::new()),
+            messages: RwLock::new(Vec::new()),
+            steps: RwLock::new(Vec::new()),
+            startup_events: RwLock::new(Vec::new()),
         })
     }
 
@@ -28,6 +33,40 @@ impl SurrealPersistence {
         let mut outcomes = self.outcomes.write().unwrap();
         outcomes.insert(outcome.proposal_id, outcome.clone());
         Ok(())
+    }
+
+    pub async fn save_message(&self, message: &ConversationMessage) -> Result<()> {
+        let mut messages = self.messages.write().unwrap();
+        messages.push(message.clone());
+        Ok(())
+    }
+
+    pub async fn get_history(&self, session_id: Uuid) -> Result<Vec<ConversationMessage>> {
+        let messages = self.messages.read().unwrap();
+        Ok(messages
+            .iter()
+            .filter(|m| m.session_id == session_id)
+            .cloned()
+            .collect())
+    }
+
+    pub async fn save_step(&self, step: &RemediationStep) -> Result<()> {
+        let mut steps = self.steps.write().unwrap();
+        steps.push(step.clone());
+        Ok(())
+    }
+
+    pub async fn save_startup_event(&self, event: &StartupEvent) -> Result<()> {
+        let mut events = self.startup_events.write().unwrap();
+        events.push(event.clone());
+        Ok(())
+    }
+
+    pub async fn get_startup_timeline(&self) -> Result<Vec<StartupEvent>> {
+        let events = self.startup_events.read().unwrap();
+        let mut sorted = events.clone();
+        sorted.sort_by_key(|e| e.timestamp);
+        Ok(sorted)
     }
 }
 

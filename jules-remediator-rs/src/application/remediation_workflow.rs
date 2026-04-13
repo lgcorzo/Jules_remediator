@@ -15,47 +15,76 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
     /// Handles a cluster error event through the full remediation lifecycle.
     pub async fn handle_error(&self, error: ClusterError) -> Result<Option<RemediationOutcome>> {
-        println!("[Remediator] Processing event: {}", error.id);
+        println!("[Workflow] Processing error: {}", error.id);
 
         if !self.remediator.classify_error(&error) {
-            println!(
-                "[Remediator] Error {} classified as non-remediable or transient.",
-                error.id
-            );
             return Ok(None);
         }
 
-        println!("[Remediator] Proposing fix for error: {}", error.id);
-        let proposal = self
-            .remediator
-            .propose_fix(&error)
-            .await
-            .context("failed to propose fix")?;
-
-        // --- Security Layer ---
-        SecurityValidator::validate_proposal(&proposal)
-            .context("security check failed for proposal")?;
-
-        println!("[Remediator] Executing fix: {}", proposal.proposal_id);
-        let outcome = self
-            .remediator
-            .execute_fix(&proposal)
-            .await
-            .context("failed to execute fix")?;
-
-        if outcome.success {
-            println!(
-                "[Remediator] Success! Error {} remediated in {}ms",
-                error.id, outcome.latency_ms
-            );
-        } else {
-            println!(
-                "[Remediator] Failure: Error {} remediation failed.",
-                error.id
-            );
+        // --- Startup Orchestration ---
+        let startup_state = self.remediator.get_startup_state().await?;
+        if matches!(startup_state.phase, StartupPhase::Initial | StartupPhase::InProcess) {
+            if let Some(dep) = self.remediator.check_startup_dependency(&error.resource).await? {
+                println!("[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...", error.resource.name, dep);
+                
+                // Pause the resource to prevent restarts
+                self.remediator.pause_resource(&error.resource).await?;
+                
+                // Wait for dependency (normally we'd use a more sophisticated wait/notify, 
+                // but for now we'll just return and let another event trigger retry or simple wait)
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                
+                // Resume and see if it works
+                self.remediator.resume_resource(&error.resource).await?;
+                return Ok(None); // Let the next event trigger logic if it still fails
+            }
         }
 
-        Ok(Some(outcome))
+        let mut proposal = self.remediator.propose_fix(&error).await?;
+        let session_id = proposal.session_id;
+        let mut attempts = 0;
+        let max_attempts = 3;
+
+        loop {
+            attempts += 1;
+            println!("[Workflow] Attempt {} for session {}", attempts, session_id);
+
+            // Security Check
+            SecurityValidator::validate_proposal(&proposal)?;
+
+            // Execution
+            let outcome = self.remediator.execute_fix(&proposal).await?;
+
+            // Verification
+            let is_healthy = self.remediator.verify_resource(&error.resource).await?;
+
+            if is_healthy {
+                println!("[Workflow] Resource is healthy after attempt {}.", attempts);
+                
+                // If there's a permanent code change proposed, commit it now.
+                if !proposal.code_change.is_empty() {
+                    println!("[Workflow] Creating GitOps PR for verified solution...");
+                    self.remediator.create_gitops_pr(&proposal).await?;
+                }
+                
+                return Ok(Some(outcome));
+            }
+
+            if attempts >= max_attempts {
+                println!("[Workflow] Max attempts reached for session {}.", session_id);
+                return Ok(Some(outcome));
+            }
+
+            // Failure: Provide feedback to Jules
+            let feedback = format!(
+                "Command '{}' executed but resource is still unhealthy.\nLogs:\n{}",
+                proposal.remediation_command.clone().unwrap_or_else(|| "none".into()),
+                outcome.logs
+            );
+            
+            println!("[Workflow] Feedback to Jules: {}", feedback);
+            proposal = self.remediator.refine_fix(session_id, &feedback).await?;
+        }
     }
 }
 
