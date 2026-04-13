@@ -47,10 +47,11 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome> {
+        let tracking_id = proposal.session_id;
         println!(
             "[Remediator] Executing fix proposal: {} (Context: {})",
             proposal.proposal_id,
-            &proposal.session_id.to_string()[..8]
+            &tracking_id.to_string()[..8]
         );
 
         // Security check
@@ -162,14 +163,15 @@ impl Remediator for RemediatorImpl {
         let log_file = self.git_client.repo_path.join("remediations.log");
         let mut content = std::fs::read_to_string(&log_file).unwrap_or_default();
         content.push_str(&format!(
-            "\n--- Session {} ---\n{}\n",
-            proposal.session_id, proposal.code_change
+            "\n--- Context {} ---\n{}\n",
+            &proposal.session_id.to_string()[..8],
+            proposal.code_change
         ));
         std::fs::write(&log_file, content)?;
 
         self.git_client.commit_all(&format!(
-            "Remediation fix for session {}",
-            proposal.session_id
+            "Remediation fix for context {}",
+            &proposal.session_id.to_string()[..8]
         ))?;
         self.git_client.push(&branch_name)?;
 
