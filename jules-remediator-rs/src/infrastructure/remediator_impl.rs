@@ -1,24 +1,35 @@
 use crate::domain::models::*;
+use crate::domain::security::SecurityValidator;
 use crate::domain::services::Remediator;
+use crate::infrastructure::git_client::GitClient;
 use crate::infrastructure::jules_dispatcher::JulesDispatcher;
-use crate::infrastructure::mlflow_logger::MlflowLogger;
 use crate::infrastructure::persistence::SurrealPersistence;
+use crate::infrastructure::startup_monitor::StartupMonitor;
 use anyhow::Result;
+use kube::Api;
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct RemediatorImpl {
     dispatcher: Arc<JulesDispatcher>,
-    logger: Arc<MlflowLogger>,
     persistence: Arc<SurrealPersistence>,
+    git_client: Arc<GitClient>,
+    startup_monitor: Arc<StartupMonitor>,
 }
 
 impl RemediatorImpl {
-    pub async fn new(dispatcher_uri: &str, mlflow_uri: &str, db_path: &str) -> Result<Self> {
+    pub async fn new(dispatcher_uri: &str, db_path: &str, git_repo_path: &str) -> Result<Self> {
+        let persistence = Arc::new(SurrealPersistence::new(db_path).await?);
         Ok(Self {
             dispatcher: Arc::new(JulesDispatcher::new(dispatcher_uri).await?),
-            logger: Arc::new(MlflowLogger::new(mlflow_uri.into())),
-            persistence: Arc::new(SurrealPersistence::new(db_path).await?),
+            persistence: persistence.clone(),
+            git_client: Arc::new(GitClient::new(git_repo_path.into())),
+            startup_monitor: Arc::new(StartupMonitor::new(persistence)),
         })
+    }
+
+    pub fn get_startup_monitor(&self) -> Arc<StartupMonitor> {
+        self.startup_monitor.clone()
     }
 }
 
@@ -26,8 +37,6 @@ impl RemediatorImpl {
 impl Remediator for RemediatorImpl {
     fn classify_error(&self, error: &ClusterError) -> bool {
         // DDD Rule: Structural vs Transient.
-        // Let's assume we skip simple transient errors (e.g. ImagePullBackOff due to registry transient error)
-        // but handle OOMKilled or CrashLoopBackOff.
         !error.message.contains("transient")
             && (error.error_code == "OOMKilled" || error.error_code == "BackOff")
     }
@@ -38,24 +47,196 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome> {
-        // Logic to push to Git or patch cluster (GitOps approach preferred)
+        let tracking_id = proposal.tracking_id;
         println!(
-            "[Remediator] Executing fix proposal: {}",
-            proposal.proposal_id
+            "[Remediator] Executing fix proposal: {} (Context: {})",
+            proposal.proposal_id,
+            &tracking_id.to_string()[..8]
         );
+
+        // Security check
+        SecurityValidator::validate_proposal(proposal)?;
+
+        let mut logs = String::new();
+        let mut success = false;
+
+        if let Some(cmd) = &proposal.remediation_command {
+            println!("[Remediator] Running command: {}", cmd);
+
+            let output = tokio::process::Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .output()
+                .await?;
+
+            success = output.status.success();
+            logs = format!(
+                "STDOUT:\n{}\nSTDERR:\n{}\n",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            // Save step to persistence
+            self.persistence
+                .save_step(&RemediationStep {
+                    tracking_id: proposal.tracking_id,
+                    timestamp: chrono::Utc::now(),
+                    command: cmd.clone(),
+                    success: output.status.success(),
+                    exit_code: output.status.code().unwrap_or(-1),
+                    stdout: String::from_utf8_lossy(&output.stdout).into(),
+                    stderr: String::from_utf8_lossy(&output.stderr).into(),
+                })
+                .await?;
+        } else {
+            logs.push_str("No remediation command provided in proposal.");
+        }
 
         let outcome = RemediationOutcome {
             proposal_id: proposal.proposal_id,
-            success: true,
-            latency_ms: 1200,
-            logs: "Successfully applied patch via flux-system".into(),
+            tracking_id: proposal.tracking_id,
+            success,
+            latency_ms: 0,
+            logs,
         };
 
         self.persistence.save_outcome(&outcome).await?;
-        self.logger
-            .log_remediation(outcome.success, outcome.latency_ms)
+        Ok(outcome)
+    }
+
+    async fn refine_fix(&self, tracking_id: Uuid, feedback: &str) -> Result<FixProposal> {
+        self.dispatcher
+            .refine_fix(Uuid::nil(), tracking_id, feedback)
+            .await
+    }
+
+    async fn verify_resource(&self, resource: &ClusterResource) -> Result<bool> {
+        println!(
+            "[Remediator] Verifying health of {} in namespace {}",
+            resource.name, resource.namespace
+        );
+
+        let client = kube::Client::try_default().await?;
+        match resource.kind.as_str() {
+            "Pod" => {
+                let pods: Api<k8s_openapi::api::core::v1::Pod> =
+                    Api::namespaced(client, &resource.namespace);
+                if let Some(status) = pods.get(&resource.name).await.ok().and_then(|p| p.status) {
+                    return Ok(status
+                        .phase
+                        .as_deref()
+                        .is_some_and(|p| p == "Running" || p == "Succeeded"));
+                }
+            }
+            "Deployment" => {
+                let deployments: Api<k8s_openapi::api::apps::v1::Deployment> =
+                    Api::namespaced(client, &resource.namespace);
+                if let Some(status) = deployments
+                    .get(&resource.name)
+                    .await
+                    .ok()
+                    .and_then(|d| d.status)
+                {
+                    return Ok(status.ready_replicas.unwrap_or(0) > 0);
+                }
+            }
+            _ => {
+                println!(
+                    "[Remediator] Verification logic for {} not yet implemented",
+                    resource.kind
+                );
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    async fn create_gitops_pr(&self, proposal: &FixProposal) -> Result<()> {
+        println!(
+            "[Remediator] Creating GitOps PR for context {}",
+            &proposal.tracking_id.to_string()[..8]
+        );
+
+        let branch_name = format!("remediation/{}", proposal.tracking_id);
+        self.git_client.create_branch(&branch_name)?;
+
+        let log_file = self.git_client.repo_path.join("remediations.log");
+        let mut content = std::fs::read_to_string(&log_file).unwrap_or_default();
+        content.push_str(&format!(
+            "\n--- Context {} ---\n{}\n",
+            &proposal.tracking_id.to_string()[..8],
+            proposal.code_change
+        ));
+        std::fs::write(&log_file, content)?;
+
+        self.git_client.commit_all(&format!(
+            "Remediation fix for context {}",
+            &proposal.tracking_id.to_string()[..8]
+        ))?;
+        self.git_client.push(&branch_name)?;
+
+        println!(
+            "[Remediator] Successfully created and pushed remediation branch: {}",
+            branch_name
+        );
+        Ok(())
+    }
+
+    async fn get_startup_state(&self) -> Result<ClusterStartupState> {
+        self.startup_monitor.get_current_state().await
+    }
+
+    async fn pause_resource(&self, resource: &ClusterResource) -> Result<()> {
+        println!(
+            "[Remediator] Pausing resource {}/{} (Scaling to 0)",
+            resource.namespace, resource.name
+        );
+
+        let output = tokio::process::Command::new("kubectl")
+            .arg("scale")
+            .arg(resource.kind.to_lowercase())
+            .arg(&resource.name)
+            .arg("-n")
+            .arg(&resource.namespace)
+            .arg("--replicas=0")
+            .output()
             .await?;
 
-        Ok(outcome)
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Failed to pause resource: {}", err);
+        }
+
+        Ok(())
+    }
+
+    async fn resume_resource(&self, resource: &ClusterResource) -> Result<()> {
+        println!(
+            "[Remediator] Resuming resource {}/{} (Scaling to 1)",
+            resource.namespace, resource.name
+        );
+
+        let output = tokio::process::Command::new("kubectl")
+            .arg("scale")
+            .arg(resource.kind.to_lowercase())
+            .arg(&resource.name)
+            .arg("-n")
+            .arg(&resource.namespace)
+            .arg("--replicas=1")
+            .output()
+            .await?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Failed to resume resource: {}", err);
+        }
+
+        Ok(())
+    }
+
+    async fn check_startup_dependency(&self, resource: &ClusterResource) -> Result<Option<String>> {
+        self.startup_monitor
+            .is_waiting_for_dependency(resource)
+            .await
     }
 }
