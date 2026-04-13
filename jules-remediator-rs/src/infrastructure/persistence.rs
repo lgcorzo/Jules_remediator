@@ -41,7 +41,7 @@ impl SurrealPersistence {
         Ok(())
     }
 
-    pub async fn get_history(&self, session_id: Uuid) -> Result<Vec<ConversationMessage>> {
+    pub async fn get_messages(&self, session_id: uuid::Uuid) -> Result<Vec<ConversationMessage>> {
         let messages = self.messages.read().unwrap();
         Ok(messages
             .iter()
@@ -113,6 +113,7 @@ mod tests {
         let persistence = SurrealPersistence::new("mem://").await.unwrap();
         let outcome = RemediationOutcome {
             proposal_id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
             success: true,
             latency_ms: 100,
             logs: "Test logs".into(),
@@ -127,5 +128,45 @@ mod tests {
             outcomes.get(&outcome.proposal_id).unwrap().logs,
             "Test logs"
         );
+    }
+
+    #[tokio::test]
+    async fn test_startup_events() {
+        let persistence = SurrealPersistence::new("").await.unwrap();
+        let resource = ClusterResource {
+            kind: "Pod".into(),
+            name: "test-pod".into(),
+            namespace: "default".into(),
+            api_version: "v1".into(),
+        };
+        let event = StartupEvent {
+            timestamp: Utc::now(),
+            resource: resource.clone(),
+            status: "Ready".into(),
+        };
+
+        persistence.save_startup_event(&event).await.unwrap();
+        let timeline = persistence.get_startup_timeline().await.unwrap();
+        
+        assert_eq!(timeline.len(), 1);
+        assert_eq!(timeline[0].status, "Ready");
+        assert_eq!(timeline[0].resource.name, "test-pod");
+    }
+
+    #[tokio::test]
+    async fn test_conversation_history() {
+        let persistence = SurrealPersistence::new("").await.unwrap();
+        let msg = ConversationMessage {
+            role: "assistant".into(),
+            content: "test message".into(),
+            timestamp: Utc::now(),
+            session_id: Uuid::new_v4(),
+        };
+
+        persistence.save_message(&msg).await.unwrap();
+        let history = persistence.get_messages(msg.session_id).await.unwrap();
+        
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].content, "test message");
     }
 }

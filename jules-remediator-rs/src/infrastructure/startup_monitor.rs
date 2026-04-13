@@ -74,3 +74,81 @@ impl StartupMonitor {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_startup_phase_transitions() {
+        let persistence = Arc::new(SurrealPersistence::new("").await.unwrap());
+        let monitor = StartupMonitor::new(persistence.clone());
+        
+        let state = monitor.get_current_state().await.unwrap();
+        assert!(matches!(state.phase, StartupPhase::Initial));
+        
+        // Add events
+        for i in 0..6 {
+            monitor.record_event(StartupEvent {
+                timestamp: Utc::now(),
+                resource: ClusterResource {
+                    kind: "Pod".into(),
+                    name: format!("pod-{}", i),
+                    namespace: "default".into(),
+                    api_version: "v1".into(),
+                },
+                status: "Ready".into(),
+            }).await.unwrap();
+        }
+        
+        let state = monitor.get_current_state().await.unwrap();
+        assert!(matches!(state.phase, StartupPhase::InProcess));
+    }
+
+    #[tokio::test]
+    async fn test_dependency_inference() {
+        let persistence = Arc::new(SurrealPersistence::new("").await.unwrap());
+        let monitor = StartupMonitor::new(persistence.clone());
+        
+        let app_resource = ClusterResource {
+            kind: "Pod".into(),
+            name: "web-app".into(),
+            namespace: "default".into(),
+            api_version: "v1".into(),
+        };
+        
+        // No events yet
+        let dep = monitor.is_waiting_for_dependency(&app_resource).await.unwrap();
+        assert!(dep.is_none());
+        
+        // Record a "Started" (but not yet Ready) mysql event
+        monitor.record_event(StartupEvent {
+            timestamp: Utc::now(),
+            resource: ClusterResource {
+                kind: "Pod".into(),
+                name: "mysql-0".into(),
+                namespace: "default".into(),
+                api_version: "v1".into(),
+            },
+            status: "Started".into(),
+        }).await.unwrap();
+        
+        let dep = monitor.is_waiting_for_dependency(&app_resource).await.unwrap();
+        assert_eq!(dep, Some("mysql".to_string()));
+        
+        // Make it Ready
+        monitor.record_event(StartupEvent {
+            timestamp: Utc::now(),
+            resource: ClusterResource {
+                kind: "Pod".into(),
+                name: "mysql-0".into(),
+                namespace: "default".into(),
+                api_version: "v1".into(),
+            },
+            status: "Ready".into(),
+        }).await.unwrap();
+        
+        let dep = monitor.is_waiting_for_dependency(&app_resource).await.unwrap();
+        assert!(dep.is_none());
+    }
+}

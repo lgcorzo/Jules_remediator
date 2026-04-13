@@ -3,7 +3,7 @@ use std::process::Command;
 use std::path::PathBuf;
 
 pub struct GitClient {
-    repo_path: PathBuf,
+    pub repo_path: PathBuf,
 }
 
 impl GitClient {

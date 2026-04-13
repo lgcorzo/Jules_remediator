@@ -1,5 +1,6 @@
 use crate::domain::models::*;
 use anyhow::Result;
+use uuid::Uuid;
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait] // Added async_trait for better trait compatibility
