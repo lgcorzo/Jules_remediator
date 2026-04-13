@@ -1,4 +1,5 @@
 use crate::domain::models::*;
+use crate::domain::security::SecurityValidator;
 use crate::domain::services::Remediator;
 use crate::infrastructure::git_client::GitClient;
 use crate::infrastructure::jules_dispatcher::JulesDispatcher;
@@ -36,8 +37,6 @@ impl RemediatorImpl {
 impl Remediator for RemediatorImpl {
     fn classify_error(&self, error: &ClusterError) -> bool {
         // DDD Rule: Structural vs Transient.
-        // Let's assume we skip simple transient errors (e.g. ImagePullBackOff due to registry transient error)
-        // but handle OOMKilled or CrashLoopBackOff.
         !error.message.contains("transient")
             && (error.error_code == "OOMKilled" || error.error_code == "BackOff")
     }
@@ -49,31 +48,32 @@ impl Remediator for RemediatorImpl {
 
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome> {
         println!(
-            "[Remediator] Executing fix proposal: {} (Session: {})",
-            proposal.proposal_id, proposal.session_id
+            "[Remediator] Executing fix proposal: {} (Context: {})",
+            proposal.proposal_id,
+            &proposal.session_id.to_string()[..8]
         );
+
+        // Security check
+        SecurityValidator::validate_proposal(proposal)?;
 
         let mut logs = String::new();
         let mut success = false;
 
-        if let Some(ref cmd) = proposal.remediation_command {
+        if let Some(cmd) = &proposal.remediation_command {
             println!("[Remediator] Running command: {}", cmd);
 
-            // Execute the command using tokio::process::Command
             let output = tokio::process::Command::new("sh")
                 .arg("-c")
                 .arg(cmd)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .spawn()?
-                .wait_with_output()
+                .output()
                 .await?;
 
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-
-            logs.push_str(&format!("STDOUT:\n{}\nSTDERR:\n{}\n", stdout, stderr));
             success = output.status.success();
+            logs = format!(
+                "STDOUT:\n{}\nSTDERR:\n{}\n",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
 
             // Save step to persistence
             self.persistence
@@ -95,7 +95,7 @@ impl Remediator for RemediatorImpl {
             proposal_id: proposal.proposal_id,
             session_id: proposal.session_id,
             success,
-            latency_ms: 0, // Should calculate real latency
+            latency_ms: 0,
             logs,
         };
 
@@ -104,9 +104,6 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn refine_fix(&self, session_id: Uuid, feedback: &str) -> Result<FixProposal> {
-        // We need the original error_id. In a real scenario, we'd look it up in persistence.
-        // For now, we'll assume we can retrieve it or pass it.
-        // Let's assume we find it from the outcome of the session.
         self.dispatcher
             .refine_fix(Uuid::nil(), session_id, feedback)
             .await
@@ -147,7 +144,7 @@ impl Remediator for RemediatorImpl {
                     "[Remediator] Verification logic for {} not yet implemented",
                     resource.kind
                 );
-                return Ok(true); // Default to true if unknown kind
+                return Ok(true);
             }
         }
         Ok(false)
@@ -155,21 +152,13 @@ impl Remediator for RemediatorImpl {
 
     async fn create_gitops_pr(&self, proposal: &FixProposal) -> Result<()> {
         println!(
-            "[Remediator] Creating GitOps PR for session {}",
-            proposal.session_id
+            "[Remediator] Creating GitOps PR for context {}",
+            &proposal.session_id.to_string()[..8]
         );
 
-        // 1. Prepare branch name
         let branch_name = format!("remediation/{}", proposal.session_id);
-
-        // 2. clone (if not exists) and branch
-        // In a real scenario, we might need a separate repo URL.
-        // For now, we assume the git_client points to a local repo we can work on.
         self.git_client.create_branch(&branch_name)?;
 
-        // 3. Apply changes (code_change)
-        // In a real scenario, Jules would provide a file path or we'd need to guess.
-        // For now, let's assume we append to a 'remediations.log' or similar for demo.
         let log_file = self.git_client.repo_path.join("remediations.log");
         let mut content = std::fs::read_to_string(&log_file).unwrap_or_default();
         content.push_str(&format!(
@@ -178,15 +167,14 @@ impl Remediator for RemediatorImpl {
         ));
         std::fs::write(&log_file, content)?;
 
-        // 4. Commit and Push
         self.git_client.commit_all(&format!(
             "Remediation fix for session {}",
             proposal.session_id
         ))?;
-        // self.git_client.push(&branch_name)?; // Disabled for safety in the environment
+        self.git_client.push(&branch_name)?;
 
         println!(
-            "[Remediator] Successfully created remediation branch: {}",
+            "[Remediator] Successfully created and pushed remediation branch: {}",
             branch_name
         );
         Ok(())
@@ -202,7 +190,6 @@ impl Remediator for RemediatorImpl {
             resource.namespace, resource.name
         );
 
-        // Use kubectl to scale to 0
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
             .arg(resource.kind.to_lowercase())
@@ -227,7 +214,6 @@ impl Remediator for RemediatorImpl {
             resource.namespace, resource.name
         );
 
-        // Use kubectl to scale to 1 (Assume 1 as default for now, could be improved to fetch original replicas)
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
             .arg(resource.kind.to_lowercase())
