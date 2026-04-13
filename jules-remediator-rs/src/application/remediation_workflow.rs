@@ -51,7 +51,7 @@ impl<R: Remediator> RemediationWorkflow<R> {
         }
 
         let mut proposal = self.remediator.propose_fix(&error).await?;
-        let tracking_id = proposal.session_id;
+        let tracking_id = proposal.tracking_id;
         let mut attempts = 1;
         let max_attempts = 3;
 
@@ -117,7 +117,7 @@ mod tests {
         let mut mock = MockRemediator::new();
         let error_id = Uuid::new_v4();
         let proposal_id = Uuid::new_v4();
-        let session_id = Uuid::new_v4();
+        let tracking_id = Uuid::new_v4();
 
         // Classification
         mock.expect_classify_error().returning(|_| true);
@@ -136,7 +136,7 @@ mod tests {
             Ok(FixProposal {
                 error_id,
                 proposal_id,
-                session_id,
+                tracking_id,
                 code_change: "".into(),
                 explanation: "".into(),
                 risk_score: RiskScore::Low,
@@ -149,7 +149,7 @@ mod tests {
         mock.expect_execute_fix().returning(move |_| {
             Ok(RemediationOutcome {
                 proposal_id,
-                session_id,
+                tracking_id,
                 success: true,
                 latency_ms: 100,
                 logs: "Success".into(),

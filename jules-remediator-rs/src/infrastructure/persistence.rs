@@ -47,12 +47,12 @@ impl SurrealPersistence {
         Ok(())
     }
 
-    pub async fn get_messages(&self, session_id: Uuid) -> Result<Vec<ConversationMessage>> {
+    pub async fn get_messages(&self, tracking_id: Uuid) -> Result<Vec<ConversationMessage>> {
         let messages: Vec<ConversationMessage> = self.db.select("messages").await?;
 
         Ok(messages
             .into_iter()
-            .filter(|m: &ConversationMessage| m.session_id == session_id)
+            .filter(|m: &ConversationMessage| m.tracking_id == tracking_id)
             .collect())
     }
 
@@ -112,19 +112,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_conversation_history() {
-        let persistence = SurrealPersistence::new("mem://").await.unwrap();
-        let session_id = Uuid::new_v4();
-        let msg = ConversationMessage {
-            role: "assistant".into(),
-            content: "test message".into(),
-            timestamp: Utc::now(),
-            session_id,
-        };
+        let persistence = SurrealPersistence::new("mem").await.unwrap();
+        let tracking_id = Uuid::new_v4();
 
-        persistence.save_message(&msg).await.unwrap();
-        let history = persistence.get_messages(session_id).await.unwrap();
+        persistence
+            .save_message(&ConversationMessage {
+                tracking_id,
+                timestamp: chrono::Utc::now(),
+                role: "jules".into(),
+                content: "Hello".into(),
+            })
+            .await
+            .unwrap();
 
+        let history = persistence.get_messages(tracking_id).await.unwrap();
         assert_eq!(history.len(), 1);
-        assert_eq!(history[0].content, "test message");
+        assert_eq!(history[0].content, "Hello");
     }
 }

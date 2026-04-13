@@ -87,7 +87,7 @@ impl JulesDispatcher {
         &self,
         response: reqwest::Response,
         error_id: uuid::Uuid,
-        session_id: uuid::Uuid,
+        tracking_id: uuid::Uuid,
     ) -> Result<FixProposal> {
         if !response.status().is_success() {
             return Err(anyhow!("Jules MCP returned error: {}", response.status()));
@@ -103,7 +103,7 @@ impl JulesDispatcher {
         Ok(FixProposal {
             error_id,
             proposal_id: uuid::Uuid::new_v4(),
-            session_id,
+            tracking_id,
             code_change: result["code_change"].as_str().unwrap_or("").into(),
             explanation: result["explanation"]
                 .as_str()
