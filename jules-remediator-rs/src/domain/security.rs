@@ -109,7 +109,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -124,7 +124,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -139,7 +139,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -154,7 +154,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::High,
@@ -176,7 +176,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "rm -rf /etc/kubernetes".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -198,7 +198,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -220,7 +220,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -242,7 +242,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -257,7 +257,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -272,7 +272,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -287,7 +287,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -302,7 +302,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
@@ -317,7 +317,7 @@ mod tests {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
             code_change: "privileged: true".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,

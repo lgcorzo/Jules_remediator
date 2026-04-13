@@ -73,7 +73,8 @@ pub enum RiskScore {
 pub struct FixProposal {
     pub error_id: Uuid,
     pub proposal_id: Uuid,
-    pub session_id: Uuid, // Track the iterative dialogue
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid, // Track the iterative dialogue
     pub code_change: String,
     pub explanation: String,
     pub risk_score: RiskScore,
@@ -83,7 +84,8 @@ pub struct FixProposal {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationMessage {
-    pub session_id: Uuid,
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub role: String, // "agent" or "jules"
     pub content: String,
@@ -91,7 +93,8 @@ pub struct ConversationMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemediationStep {
-    pub session_id: Uuid,
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub command: String,
     pub success: bool,
@@ -103,7 +106,8 @@ pub struct RemediationStep {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemediationOutcome {
     pub proposal_id: Uuid,
-    pub session_id: Uuid,
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
     pub success: bool,
     pub latency_ms: u64,
     pub logs: String,

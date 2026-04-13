@@ -15,7 +15,7 @@ pub trait Remediator {
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome>;
 
     /// Refines a fix based on feedback from a previous attempt.
-    async fn refine_fix(&self, session_id: Uuid, feedback: &str) -> Result<FixProposal>;
+    async fn refine_fix(&self, tracking_id: Uuid, feedback: &str) -> Result<FixProposal>;
 
     /// Verifies if the resource is healthy.
     async fn verify_resource(&self, resource: &ClusterResource) -> Result<bool>;

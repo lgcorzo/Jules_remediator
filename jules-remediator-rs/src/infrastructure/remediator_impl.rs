@@ -47,7 +47,7 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn execute_fix(&self, proposal: &FixProposal) -> Result<RemediationOutcome> {
-        let tracking_id = proposal.session_id;
+        let tracking_id = proposal.tracking_id;
         println!(
             "[Remediator] Executing fix proposal: {} (Context: {})",
             proposal.proposal_id,
@@ -79,7 +79,7 @@ impl Remediator for RemediatorImpl {
             // Save step to persistence
             self.persistence
                 .save_step(&RemediationStep {
-                    session_id: proposal.session_id,
+                    tracking_id: proposal.tracking_id,
                     timestamp: chrono::Utc::now(),
                     command: cmd.clone(),
                     success: output.status.success(),
@@ -94,7 +94,7 @@ impl Remediator for RemediatorImpl {
 
         let outcome = RemediationOutcome {
             proposal_id: proposal.proposal_id,
-            session_id: proposal.session_id,
+            tracking_id: proposal.tracking_id,
             success,
             latency_ms: 0,
             logs,
@@ -104,9 +104,9 @@ impl Remediator for RemediatorImpl {
         Ok(outcome)
     }
 
-    async fn refine_fix(&self, session_id: Uuid, feedback: &str) -> Result<FixProposal> {
+    async fn refine_fix(&self, tracking_id: Uuid, feedback: &str) -> Result<FixProposal> {
         self.dispatcher
-            .refine_fix(Uuid::nil(), session_id, feedback)
+            .refine_fix(Uuid::nil(), tracking_id, feedback)
             .await
     }
 
@@ -154,24 +154,24 @@ impl Remediator for RemediatorImpl {
     async fn create_gitops_pr(&self, proposal: &FixProposal) -> Result<()> {
         println!(
             "[Remediator] Creating GitOps PR for context {}",
-            &proposal.session_id.to_string()[..8]
+            &proposal.tracking_id.to_string()[..8]
         );
 
-        let branch_name = format!("remediation/{}", proposal.session_id);
+        let branch_name = format!("remediation/{}", proposal.tracking_id);
         self.git_client.create_branch(&branch_name)?;
 
         let log_file = self.git_client.repo_path.join("remediations.log");
         let mut content = std::fs::read_to_string(&log_file).unwrap_or_default();
         content.push_str(&format!(
             "\n--- Context {} ---\n{}\n",
-            &proposal.session_id.to_string()[..8],
+            &proposal.tracking_id.to_string()[..8],
             proposal.code_change
         ));
         std::fs::write(&log_file, content)?;
 
         self.git_client.commit_all(&format!(
             "Remediation fix for context {}",
-            &proposal.session_id.to_string()[..8]
+            &proposal.tracking_id.to_string()[..8]
         ))?;
         self.git_client.push(&branch_name)?;
 
