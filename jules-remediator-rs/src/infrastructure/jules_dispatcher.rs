@@ -18,9 +18,10 @@ impl JulesDispatcher {
     }
 
     pub async fn get_fix(&self, error: &ClusterError) -> Result<FixProposal> {
+        let session_id = uuid::Uuid::new_v4();
         println!(
-            "[Dispatcher] Dispatching mission to Jules Cloud endpoint: {} for error: {}",
-            self.endpoint, error.id
+            "[Dispatcher] Starting mission {} for error: {}",
+            session_id, error.id
         );
 
         let response = self
@@ -33,6 +34,7 @@ impl JulesDispatcher {
                     "name": "remediate_error",
                     "arguments": {
                         "error_id": error.id,
+                        "session_id": session_id,
                         "message": error.message,
                         "resource": error.resource.name,
                         "namespace": error.resource.namespace
@@ -43,6 +45,38 @@ impl JulesDispatcher {
             .send()
             .await?;
 
+        self.handle_response(response, error.id, session_id).await
+    }
+
+    pub async fn refine_fix(&self, error_id: uuid::Uuid, session_id: uuid::Uuid, feedback: &str) -> Result<FixProposal> {
+        println!(
+            "[Dispatcher] Refining mission {} with feedback: {}",
+            session_id, feedback
+        );
+
+        let response = self
+            .client
+            .post(&self.endpoint)
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "method": "call_tool",
+                "params": {
+                    "name": "refine_remediation",
+                    "arguments": {
+                        "error_id": error_id,
+                        "session_id": session_id,
+                        "feedback": feedback
+                    }
+                },
+                "id": 1
+            }))
+            .send()
+            .await?;
+
+        self.handle_response(response, error_id, session_id).await
+    }
+
+    async fn handle_response(&self, response: reqwest::Response, error_id: uuid::Uuid, session_id: uuid::Uuid) -> Result<FixProposal> {
         if !response.status().is_success() {
             return Err(anyhow!("Jules MCP returned error: {}", response.status()));
         }
@@ -54,10 +88,10 @@ impl JulesDispatcher {
 
         let result = &body["result"];
 
-        // Map MCP result to FixProposal
         Ok(FixProposal {
-            error_id: error.id,
+            error_id,
             proposal_id: uuid::Uuid::new_v4(),
+            session_id,
             code_change: result["code_change"].as_str().unwrap_or("").into(),
             explanation: result["explanation"]
                 .as_str()

@@ -10,14 +10,15 @@ use uuid::Uuid;
 
 pub struct K8sWatcher {
     client: Client,
+    startup_monitor: Option<Arc<StartupMonitor>>,
 }
 
 impl K8sWatcher {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(startup_monitor: Option<Arc<StartupMonitor>>) -> Result<Self> {
         let client = Client::try_default()
             .await
             .context("failed to create K8s client")?;
-        Ok(Self { client })
+        Ok(Self { client, startup_monitor })
     }
 
     /// Monitors events and triggers the remediation workflow.
@@ -55,14 +56,37 @@ impl K8sWatcher {
         e: Event,
         workflow: Arc<RemediationWorkflow<R>>,
     ) -> Result<()> {
-        // Filter for errors (e.g., Warning events with OOMKilled or BackOff)
-        if e.type_ == Some("Warning".into()) {
-            let reason = e.reason.clone().unwrap_or_default();
+        let reason = e.reason.clone().unwrap_or_default();
+        let message = e.message.clone().unwrap_or_default();
+        let type_ = e.type_.clone().unwrap_or_default();
+
+        let resource = ClusterResource {
+            kind: e.involved_object.kind.clone().unwrap_or_default(),
+            name: e.involved_object.name.clone().unwrap_or_default(),
+            namespace: e.involved_object.namespace.clone().unwrap_or_default(),
+            api_version: e.involved_object.api_version.clone().unwrap_or_default(),
+        };
+
+        // Track Startup Events (Normal)
+        if type_ == "Normal" {
+            if let Some(ref monitor) = self.startup_monitor {
+                if reason == "Started" || reason == "Ready" {
+                    monitor.record_event(StartupEvent {
+                        timestamp: chrono::Utc::now(),
+                        resource: resource.clone(),
+                        status: reason.clone(),
+                    }).await?;
+                }
+            }
+        }
+
+        // Filter for errors (Warning)
+        if type_ == "Warning" {
             if reason == "OOMKilled" || reason == "BackOff" {
                 println!(
                     "[Watcher] Detected target error: {} in {}",
                     reason,
-                    e.metadata.name.clone().unwrap_or_default()
+                    resource.name
                 );
 
                 let cluster_error = ClusterError {
@@ -70,13 +94,8 @@ impl K8sWatcher {
                     timestamp: chrono::Utc::now(),
                     severity: Severity::High,
                     error_type: ErrorType::Structural,
-                    resource: ClusterResource {
-                        kind: e.involved_object.kind.clone().unwrap_or_default(),
-                        name: e.involved_object.name.clone().unwrap_or_default(),
-                        namespace: e.involved_object.namespace.clone().unwrap_or_default(),
-                        api_version: e.involved_object.api_version.clone().unwrap_or_default(),
-                    },
-                    message: e.message.clone().unwrap_or_default(),
+                    resource,
+                    message,
                     error_code: reason,
                     raw_event: serde_json::to_value(&e).unwrap_or(serde_json::Value::Null),
                 };
