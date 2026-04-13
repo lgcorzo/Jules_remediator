@@ -51,13 +51,16 @@ impl<R: Remediator> RemediationWorkflow<R> {
         }
 
         let mut proposal = self.remediator.propose_fix(&error).await?;
-        let session_id = proposal.session_id;
-        let mut attempts = 0;
+        let tracking_id = proposal.session_id;
+        let mut attempts = 1;
         let max_attempts = 3;
 
         loop {
-            attempts += 1;
-            println!("[Workflow] Attempt {} for session {}", attempts, session_id);
+            println!(
+                "[Workflow] Attempt {} for context {}",
+                attempts,
+                &tracking_id.to_string()[..8]
+            );
 
             // Security Check
             SecurityValidator::validate_proposal(&proposal)?;
@@ -82,24 +85,22 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
             if attempts >= max_attempts {
                 println!(
-                    "[Workflow] Max attempts reached for session {}.",
-                    session_id
+                    "[Workflow] Max attempts reached for context {}.",
+                    &tracking_id.to_string()[..8]
                 );
                 return Ok(Some(outcome));
             }
 
             // Failure: Provide feedback to Jules
             let feedback = format!(
-                "Command '{}' executed but resource is still unhealthy.\nLogs:\n{}",
-                proposal
-                    .remediation_command
-                    .clone()
-                    .unwrap_or_else(|| "none".into()),
+                "Command '{}' executed but resource is still unhealthy. Logs: {}",
+                proposal.remediation_command.as_deref().unwrap_or("none"),
                 outcome.logs
             );
 
-            println!("[Workflow] Feedback to Jules: {}", feedback);
-            proposal = self.remediator.refine_fix(session_id, &feedback).await?;
+            println!("[Workflow] Feedback to AI: {}", feedback);
+            proposal = self.remediator.refine_fix(tracking_id, &feedback).await?;
+            attempts += 1;
         }
     }
 }

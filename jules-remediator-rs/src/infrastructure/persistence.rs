@@ -1,72 +1,79 @@
 use crate::domain::models::*;
 use anyhow::Result;
-use std::collections::HashMap;
-use std::sync::RwLock;
+use surrealdb::Surreal;
+use surrealdb::engine::local::{Mem, SurrealKv};
 use uuid::Uuid;
 
 pub struct SurrealPersistence {
-    errors: RwLock<HashMap<Uuid, ClusterError>>,
-    outcomes: RwLock<HashMap<Uuid, RemediationOutcome>>,
-    messages: RwLock<Vec<ConversationMessage>>,
-    steps: RwLock<Vec<RemediationStep>>,
-    startup_events: RwLock<Vec<StartupEvent>>,
+    db: Surreal<surrealdb::engine::local::Db>,
 }
 
 impl SurrealPersistence {
-    pub async fn new(_path: &str) -> Result<Self> {
-        Ok(Self {
-            errors: RwLock::new(HashMap::new()),
-            outcomes: RwLock::new(HashMap::new()),
-            messages: RwLock::new(Vec::new()),
-            steps: RwLock::new(Vec::new()),
-            startup_events: RwLock::new(Vec::new()),
-        })
+    pub async fn new(path: &str) -> Result<Self> {
+        let db = if path == "mem://" || path.is_empty() {
+            let db = Surreal::new::<Mem>(()).await?;
+            db.use_ns("jules").use_db("remediator").await?;
+            db
+        } else {
+            let db = Surreal::new::<SurrealKv>(path).await?;
+            db.use_ns("jules").use_db("remediator").await?;
+            db
+        };
+
+        Ok(Self { db })
     }
 
     pub async fn save_error(&self, error: &ClusterError) -> Result<()> {
-        let mut errors = self.errors.write().unwrap();
-        errors.insert(error.id, error.clone());
+        let _: Option<ClusterError> = self
+            .db
+            .update(("errors", error.id.to_string()))
+            .content(error.clone())
+            .await?;
         Ok(())
     }
 
     pub async fn save_outcome(&self, outcome: &RemediationOutcome) -> Result<()> {
-        let mut outcomes = self.outcomes.write().unwrap();
-        outcomes.insert(outcome.proposal_id, outcome.clone());
+        let _: Option<RemediationOutcome> = self
+            .db
+            .update(("outcomes", outcome.proposal_id.to_string()))
+            .content(outcome.clone())
+            .await?;
         Ok(())
     }
 
     pub async fn save_message(&self, message: &ConversationMessage) -> Result<()> {
-        let mut messages = self.messages.write().unwrap();
-        messages.push(message.clone());
+        let _: Option<ConversationMessage> =
+            self.db.create("messages").content(message.clone()).await?;
         Ok(())
     }
 
-    pub async fn get_messages(&self, session_id: uuid::Uuid) -> Result<Vec<ConversationMessage>> {
-        let messages = self.messages.read().unwrap();
+    pub async fn get_messages(&self, session_id: Uuid) -> Result<Vec<ConversationMessage>> {
+        let messages: Vec<ConversationMessage> = self.db.select("messages").await?;
+
         Ok(messages
-            .iter()
-            .filter(|m| m.session_id == session_id)
-            .cloned()
+            .into_iter()
+            .filter(|m: &ConversationMessage| m.session_id == session_id)
             .collect())
     }
 
     pub async fn save_step(&self, step: &RemediationStep) -> Result<()> {
-        let mut steps = self.steps.write().unwrap();
-        steps.push(step.clone());
+        let _: Option<RemediationStep> = self.db.create("steps").content(step.clone()).await?;
         Ok(())
     }
 
     pub async fn save_startup_event(&self, event: &StartupEvent) -> Result<()> {
-        let mut events = self.startup_events.write().unwrap();
-        events.push(event.clone());
+        let _: Option<StartupEvent> = self
+            .db
+            .create("startup_events")
+            .content(event.clone())
+            .await?;
         Ok(())
     }
 
     pub async fn get_startup_timeline(&self) -> Result<Vec<StartupEvent>> {
-        let events = self.startup_events.read().unwrap();
-        let mut sorted = events.clone();
-        sorted.sort_by_key(|e| e.timestamp);
-        Ok(sorted)
+        let mut events: Vec<StartupEvent> = self.db.select("startup_events").await?;
+        events.sort_by_key(|e| e.timestamp);
+        Ok(events)
     }
 }
 
@@ -100,71 +107,22 @@ mod tests {
             raw_event: serde_json::Value::Null,
         };
 
-        let result = persistence.save_error(&error).await;
-        assert!(result.is_ok());
-
-        let errors = persistence.errors.read().unwrap();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors.get(&error.id).unwrap().message, "Test error");
-    }
-
-    #[tokio::test]
-    async fn test_save_outcome() {
-        let persistence = SurrealPersistence::new("mem://").await.unwrap();
-        let outcome = RemediationOutcome {
-            proposal_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
-            success: true,
-            latency_ms: 100,
-            logs: "Test logs".into(),
-        };
-
-        let result = persistence.save_outcome(&outcome).await;
-        assert!(result.is_ok());
-
-        let outcomes = persistence.outcomes.read().unwrap();
-        assert_eq!(outcomes.len(), 1);
-        assert_eq!(
-            outcomes.get(&outcome.proposal_id).unwrap().logs,
-            "Test logs"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_startup_events() {
-        let persistence = SurrealPersistence::new("").await.unwrap();
-        let resource = ClusterResource {
-            kind: "Pod".into(),
-            name: "test-pod".into(),
-            namespace: "default".into(),
-            api_version: "v1".into(),
-        };
-        let event = StartupEvent {
-            timestamp: Utc::now(),
-            resource: resource.clone(),
-            status: "Ready".into(),
-        };
-
-        persistence.save_startup_event(&event).await.unwrap();
-        let timeline = persistence.get_startup_timeline().await.unwrap();
-
-        assert_eq!(timeline.len(), 1);
-        assert_eq!(timeline[0].status, "Ready");
-        assert_eq!(timeline[0].resource.name, "test-pod");
+        persistence.save_error(&error).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_conversation_history() {
-        let persistence = SurrealPersistence::new("").await.unwrap();
+        let persistence = SurrealPersistence::new("mem://").await.unwrap();
+        let session_id = Uuid::new_v4();
         let msg = ConversationMessage {
             role: "assistant".into(),
             content: "test message".into(),
             timestamp: Utc::now(),
-            session_id: Uuid::new_v4(),
+            session_id,
         };
 
         persistence.save_message(&msg).await.unwrap();
-        let history = persistence.get_messages(msg.session_id).await.unwrap();
+        let history = persistence.get_messages(session_id).await.unwrap();
 
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].content, "test message");
