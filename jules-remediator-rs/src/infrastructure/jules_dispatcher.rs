@@ -18,10 +18,11 @@ impl JulesDispatcher {
     }
 
     pub async fn get_fix(&self, error: &ClusterError) -> Result<FixProposal> {
-        let session_id = uuid::Uuid::new_v4();
+        let tracking_id = uuid::Uuid::new_v4();
         println!(
             "[Dispatcher] Starting mission {} for error: {}",
-            session_id, error.id
+            &tracking_id.to_string()[..8],
+            error.id
         );
 
         let response = self
@@ -34,7 +35,7 @@ impl JulesDispatcher {
                     "name": "remediate_error",
                     "arguments": {
                         "error_id": error.id,
-                        "session_id": session_id,
+                        "session_id": tracking_id,
                         "message": error.message,
                         "resource": error.resource.name,
                         "namespace": error.resource.namespace
@@ -45,18 +46,19 @@ impl JulesDispatcher {
             .send()
             .await?;
 
-        self.handle_response(response, error.id, session_id).await
+        self.handle_response(response, error.id, tracking_id).await
     }
 
     pub async fn refine_fix(
         &self,
         error_id: uuid::Uuid,
-        session_id: uuid::Uuid,
+        tracking_id: uuid::Uuid,
         feedback: &str,
     ) -> Result<FixProposal> {
         println!(
             "[Dispatcher] Refining mission {} with feedback: {}",
-            session_id, feedback
+            &tracking_id.to_string()[..8],
+            feedback
         );
 
         let response = self
@@ -69,7 +71,7 @@ impl JulesDispatcher {
                     "name": "refine_remediation",
                     "arguments": {
                         "error_id": error_id,
-                        "session_id": session_id,
+                        "session_id": tracking_id,
                         "feedback": feedback
                     }
                 },
@@ -78,7 +80,7 @@ impl JulesDispatcher {
             .send()
             .await?;
 
-        self.handle_response(response, error_id, session_id).await
+        self.handle_response(response, error_id, tracking_id).await
     }
 
     async fn handle_response(
