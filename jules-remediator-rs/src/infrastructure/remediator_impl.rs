@@ -58,7 +58,7 @@ impl Remediator for RemediatorImpl {
 
         if let Some(ref cmd) = proposal.remediation_command {
             println!("[Remediator] Running command: {}", cmd);
-            
+
             // Execute the command using tokio::process::Command
             let output = tokio::process::Command::new("sh")
                 .arg("-c")
@@ -76,15 +76,17 @@ impl Remediator for RemediatorImpl {
             success = output.status.success();
 
             // Save step to persistence
-            self.persistence.save_step(&RemediationStep {
-                session_id: proposal.session_id,
-                timestamp: chrono::Utc::now(),
-                command: cmd.clone(),
-                success: output.status.success(),
-                exit_code: output.status.code().unwrap_or(-1),
-                stdout: String::from_utf8_lossy(&output.stdout).into(),
-                stderr: String::from_utf8_lossy(&output.stderr).into(),
-            }).await?;
+            self.persistence
+                .save_step(&RemediationStep {
+                    session_id: proposal.session_id,
+                    timestamp: chrono::Utc::now(),
+                    command: cmd.clone(),
+                    success: output.status.success(),
+                    exit_code: output.status.code().unwrap_or(-1),
+                    stdout: String::from_utf8_lossy(&output.stdout).into(),
+                    stderr: String::from_utf8_lossy(&output.stderr).into(),
+                })
+                .await?;
         } else {
             logs.push_str("No remediation command provided in proposal.");
         }
@@ -105,28 +107,46 @@ impl Remediator for RemediatorImpl {
         // We need the original error_id. In a real scenario, we'd look it up in persistence.
         // For now, we'll assume we can retrieve it or pass it.
         // Let's assume we find it from the outcome of the session.
-        self.dispatcher.refine_fix(Uuid::nil(), session_id, feedback).await
+        self.dispatcher
+            .refine_fix(Uuid::nil(), session_id, feedback)
+            .await
     }
 
     async fn verify_resource(&self, resource: &ClusterResource) -> Result<bool> {
-        println!("[Remediator] Verifying health of {} in namespace {}", resource.name, resource.namespace);
-        
+        println!(
+            "[Remediator] Verifying health of {} in namespace {}",
+            resource.name, resource.namespace
+        );
+
         let client = kube::Client::try_default().await?;
         match resource.kind.as_str() {
             "Pod" => {
-                let pods: Api<k8s_openapi::api::core::v1::Pod> = Api::namespaced(client, &resource.namespace);
+                let pods: Api<k8s_openapi::api::core::v1::Pod> =
+                    Api::namespaced(client, &resource.namespace);
                 if let Some(status) = pods.get(&resource.name).await.ok().and_then(|p| p.status) {
-                    return Ok(status.phase.as_deref().is_some_and(|p| p == "Running" || p == "Succeeded"));
+                    return Ok(status
+                        .phase
+                        .as_deref()
+                        .is_some_and(|p| p == "Running" || p == "Succeeded"));
                 }
-            },
-            "Deployment" => {
-                let deployments: Api<k8s_openapi::api::apps::v1::Deployment> = Api::namespaced(client, &resource.namespace);
-            if let Some(status) = deployments.get(&resource.name).await.ok().and_then(|d| d.status) {
-                return Ok(status.ready_replicas.unwrap_or(0) > 0);
             }
-            },
+            "Deployment" => {
+                let deployments: Api<k8s_openapi::api::apps::v1::Deployment> =
+                    Api::namespaced(client, &resource.namespace);
+                if let Some(status) = deployments
+                    .get(&resource.name)
+                    .await
+                    .ok()
+                    .and_then(|d| d.status)
+                {
+                    return Ok(status.ready_replicas.unwrap_or(0) > 0);
+                }
+            }
             _ => {
-                println!("[Remediator] Verification logic for {} not yet implemented", resource.kind);
+                println!(
+                    "[Remediator] Verification logic for {} not yet implemented",
+                    resource.kind
+                );
                 return Ok(true); // Default to true if unknown kind
             }
         }
@@ -134,29 +154,41 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn create_gitops_pr(&self, proposal: &FixProposal) -> Result<()> {
-        println!("[Remediator] Creating GitOps PR for session {}", proposal.session_id);
-        
+        println!(
+            "[Remediator] Creating GitOps PR for session {}",
+            proposal.session_id
+        );
+
         // 1. Prepare branch name
         let branch_name = format!("remediation/{}", proposal.session_id);
-        
+
         // 2. clone (if not exists) and branch
         // In a real scenario, we might need a separate repo URL.
         // For now, we assume the git_client points to a local repo we can work on.
         self.git_client.create_branch(&branch_name)?;
-        
+
         // 3. Apply changes (code_change)
         // In a real scenario, Jules would provide a file path or we'd need to guess.
         // For now, let's assume we append to a 'remediations.log' or similar for demo.
         let log_file = self.git_client.repo_path.join("remediations.log");
         let mut content = std::fs::read_to_string(&log_file).unwrap_or_default();
-        content.push_str(&format!("\n--- Session {} ---\n{}\n", proposal.session_id, proposal.code_change));
+        content.push_str(&format!(
+            "\n--- Session {} ---\n{}\n",
+            proposal.session_id, proposal.code_change
+        ));
         std::fs::write(&log_file, content)?;
 
         // 4. Commit and Push
-        self.git_client.commit_all(&format!("Remediation fix for session {}", proposal.session_id))?;
+        self.git_client.commit_all(&format!(
+            "Remediation fix for session {}",
+            proposal.session_id
+        ))?;
         // self.git_client.push(&branch_name)?; // Disabled for safety in the environment
-        
-        println!("[Remediator] Successfully created remediation branch: {}", branch_name);
+
+        println!(
+            "[Remediator] Successfully created remediation branch: {}",
+            branch_name
+        );
         Ok(())
     }
 
@@ -165,8 +197,11 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn pause_resource(&self, resource: &ClusterResource) -> Result<()> {
-        println!("[Remediator] Pausing resource {}/{} (Scaling to 0)", resource.namespace, resource.name);
-        
+        println!(
+            "[Remediator] Pausing resource {}/{} (Scaling to 0)",
+            resource.namespace, resource.name
+        );
+
         // Use kubectl to scale to 0
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
@@ -187,8 +222,11 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn resume_resource(&self, resource: &ClusterResource) -> Result<()> {
-        println!("[Remediator] Resuming resource {}/{} (Scaling to 1)", resource.namespace, resource.name);
-        
+        println!(
+            "[Remediator] Resuming resource {}/{} (Scaling to 1)",
+            resource.namespace, resource.name
+        );
+
         // Use kubectl to scale to 1 (Assume 1 as default for now, could be improved to fetch original replicas)
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
@@ -209,6 +247,8 @@ impl Remediator for RemediatorImpl {
     }
 
     async fn check_startup_dependency(&self, resource: &ClusterResource) -> Result<Option<String>> {
-        self.startup_monitor.is_waiting_for_dependency(resource).await
+        self.startup_monitor
+            .is_waiting_for_dependency(resource)
+            .await
     }
 }

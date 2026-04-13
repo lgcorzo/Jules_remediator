@@ -48,7 +48,12 @@ impl JulesDispatcher {
         self.handle_response(response, error.id, session_id).await
     }
 
-    pub async fn refine_fix(&self, error_id: uuid::Uuid, session_id: uuid::Uuid, feedback: &str) -> Result<FixProposal> {
+    pub async fn refine_fix(
+        &self,
+        error_id: uuid::Uuid,
+        session_id: uuid::Uuid,
+        feedback: &str,
+    ) -> Result<FixProposal> {
         println!(
             "[Dispatcher] Refining mission {} with feedback: {}",
             session_id, feedback
@@ -76,7 +81,12 @@ impl JulesDispatcher {
         self.handle_response(response, error_id, session_id).await
     }
 
-    async fn handle_response(&self, response: reqwest::Response, error_id: uuid::Uuid, session_id: uuid::Uuid) -> Result<FixProposal> {
+    async fn handle_response(
+        &self,
+        response: reqwest::Response,
+        error_id: uuid::Uuid,
+        session_id: uuid::Uuid,
+    ) -> Result<FixProposal> {
         if !response.status().is_success() {
             return Err(anyhow!("Jules MCP returned error: {}", response.status()));
         }

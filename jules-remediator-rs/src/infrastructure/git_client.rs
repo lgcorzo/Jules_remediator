@@ -1,6 +1,6 @@
-use anyhow::{Result, Context};
-use std::process::Command;
+use anyhow::{Context, Result};
 use std::path::PathBuf;
+use std::process::Command;
 
 pub struct GitClient {
     pub repo_path: PathBuf,

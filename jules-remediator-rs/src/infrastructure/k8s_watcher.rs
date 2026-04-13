@@ -19,7 +19,10 @@ impl K8sWatcher {
         let client = Client::try_default()
             .await
             .context("failed to create K8s client")?;
-        Ok(Self { client, startup_monitor })
+        Ok(Self {
+            client,
+            startup_monitor,
+        })
     }
 
     /// Monitors events and triggers the remediation workflow.
@@ -68,16 +71,17 @@ impl K8sWatcher {
             api_version: e.involved_object.api_version.clone().unwrap_or_default(),
         };
 
-
         // Track Startup Events (Normal)
         #[allow(clippy::collapsible_if)]
         if type_ == "Normal" && (reason == "Started" || reason == "Ready") {
             if let Some(ref monitor) = self.startup_monitor {
-                monitor.record_event(StartupEvent {
-                    timestamp: chrono::Utc::now(),
-                    resource: resource.clone(),
-                    status: reason.clone(),
-                }).await?;
+                monitor
+                    .record_event(StartupEvent {
+                        timestamp: chrono::Utc::now(),
+                        resource: resource.clone(),
+                        status: reason.clone(),
+                    })
+                    .await?;
             }
         }
 
@@ -85,8 +89,7 @@ impl K8sWatcher {
         if type_ == "Warning" && (reason == "OOMKilled" || reason == "BackOff") {
             println!(
                 "[Watcher] Detected target error: {} in {}",
-                reason,
-                resource.name
+                reason, resource.name
             );
 
             let cluster_error = ClusterError {
