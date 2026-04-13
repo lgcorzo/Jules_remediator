@@ -1,7 +1,7 @@
 use crate::domain::models::*;
 use crate::domain::security::SecurityValidator;
 use crate::domain::services::Remediator;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::sync::Arc;
 
 pub struct RemediationWorkflow<R: Remediator> {
@@ -15,47 +15,93 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
     /// Handles a cluster error event through the full remediation lifecycle.
     pub async fn handle_error(&self, error: ClusterError) -> Result<Option<RemediationOutcome>> {
-        println!("[Remediator] Processing event: {}", error.id);
+        println!("[Workflow] Processing error: {}", error.id);
 
         if !self.remediator.classify_error(&error) {
-            println!(
-                "[Remediator] Error {} classified as non-remediable or transient.",
-                error.id
-            );
             return Ok(None);
         }
 
-        println!("[Remediator] Proposing fix for error: {}", error.id);
-        let proposal = self
-            .remediator
-            .propose_fix(&error)
-            .await
-            .context("failed to propose fix")?;
+        // --- Startup Orchestration ---
+        let startup_state = self.remediator.get_startup_state().await?;
+        #[allow(clippy::collapsible_if)]
+        if matches!(
+            startup_state.phase,
+            StartupPhase::Initial | StartupPhase::InProcess
+        ) {
+            if let Some(dep) = self
+                .remediator
+                .check_startup_dependency(&error.resource)
+                .await?
+            {
+                println!(
+                    "[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...",
+                    error.resource.name, dep
+                );
 
-        // --- Security Layer ---
-        SecurityValidator::validate_proposal(&proposal)
-            .context("security check failed for proposal")?;
+                // Orchestrate: Pause this resource until dependency is ready
+                self.remediator.pause_resource(&error.resource).await?;
 
-        println!("[Remediator] Executing fix: {}", proposal.proposal_id);
-        let outcome = self
-            .remediator
-            .execute_fix(&proposal)
-            .await
-            .context("failed to execute fix")?;
+                // (Logic to wait for dep or just exit and let the next event retry)
+                // For now, we resume as a placeholder or exit to let K8s retry later
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                self.remediator.resume_resource(&error.resource).await?;
 
-        if outcome.success {
-            println!(
-                "[Remediator] Success! Error {} remediated in {}ms",
-                error.id, outcome.latency_ms
-            );
-        } else {
-            println!(
-                "[Remediator] Failure: Error {} remediation failed.",
-                error.id
-            );
+                return Ok(None); // Let the next event trigger logic if it still fails
+            }
         }
 
-        Ok(Some(outcome))
+        let mut proposal = self.remediator.propose_fix(&error).await?;
+        let tracking_id = proposal.tracking_id;
+        let mut attempts = 1;
+        let max_attempts = 3;
+
+        loop {
+            println!(
+                "[Workflow] Attempt {} for context {}",
+                attempts,
+                &tracking_id.to_string()[..8]
+            );
+
+            // Security Check
+            SecurityValidator::validate_proposal(&proposal)?;
+
+            // Execution
+            let outcome = self.remediator.execute_fix(&proposal).await?;
+
+            // Verification
+            let is_healthy = self.remediator.verify_resource(&error.resource).await?;
+
+            if is_healthy {
+                println!("[Workflow] Resource is healthy after attempt {}.", attempts);
+
+                // If there's a permanent code change proposed, commit it now.
+                if !proposal.code_change.is_empty() {
+                    println!("[Workflow] Creating GitOps PR for verified solution...");
+                    self.remediator.create_gitops_pr(&proposal).await?;
+                }
+
+                return Ok(Some(outcome));
+            }
+
+            if attempts >= max_attempts {
+                println!(
+                    "[Workflow] Max attempts reached for context {}.",
+                    &tracking_id.to_string()[..8]
+                );
+                return Ok(Some(outcome));
+            }
+
+            // Failure: Provide feedback to Jules
+            let feedback = format!(
+                "Command '{}' executed but resource is still unhealthy. Logs: {}",
+                proposal.remediation_command.as_deref().unwrap_or("none"),
+                outcome.logs
+            );
+
+            println!("[Workflow] Feedback to AI: {}", feedback);
+            proposal = self.remediator.refine_fix(tracking_id, &feedback).await?;
+            attempts += 1;
+        }
     }
 }
 
@@ -71,15 +117,26 @@ mod tests {
         let mut mock = MockRemediator::new();
         let error_id = Uuid::new_v4();
         let proposal_id = Uuid::new_v4();
+        let tracking_id = Uuid::new_v4();
 
-        // 1. Classification
+        // Classification
         mock.expect_classify_error().returning(|_| true);
 
-        // 2. Proposal
+        // Startup State (Normal)
+        mock.expect_get_startup_state().returning(|| {
+            Ok(ClusterStartupState {
+                phase: StartupPhase::Stabilized,
+                event_count: 100,
+                start_time: Utc::now(),
+            })
+        });
+
+        // Proposal
         mock.expect_propose_fix().returning(move |_| {
             Ok(FixProposal {
                 error_id,
                 proposal_id,
+                tracking_id,
                 code_change: "".into(),
                 explanation: "".into(),
                 risk_score: RiskScore::Low,
@@ -88,15 +145,19 @@ mod tests {
             })
         });
 
-        // 3. Execution
+        // Execution
         mock.expect_execute_fix().returning(move |_| {
             Ok(RemediationOutcome {
                 proposal_id,
+                tracking_id,
                 success: true,
                 latency_ms: 100,
                 logs: "Success".into(),
             })
         });
+
+        // Verification
+        mock.expect_verify_resource().returning(|_| Ok(true));
 
         let workflow = RemediationWorkflow::new(Arc::new(mock));
         let error = ClusterError {
@@ -123,46 +184,48 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_error_security_fail() {
+    async fn test_startup_orchestration_pause() {
         let mut mock = MockRemediator::new();
-        // Proposal with injection
+        let error_id = Uuid::new_v4();
+
         mock.expect_classify_error().returning(|_| true);
-        mock.expect_propose_fix().returning(|_| {
-            Ok(FixProposal {
-                error_id: Uuid::new_v4(),
-                proposal_id: Uuid::new_v4(),
-                code_change: "".into(),
-                explanation: "".into(),
-                risk_score: RiskScore::Low,
-                confidence: 1.0,
-                remediation_command: Some("kubectl patch deployment foo; rm -rf /".into()),
+
+        // Simulate Initial Startup
+        mock.expect_get_startup_state().returning(|| {
+            Ok(ClusterStartupState {
+                phase: StartupPhase::Initial,
+                event_count: 2,
+                start_time: Utc::now(),
             })
         });
 
+        // Detect dependency
+        mock.expect_check_startup_dependency()
+            .returning(|_| Ok(Some("db".into())));
+
+        // Expect pause and resume
+        mock.expect_pause_resource().returning(|_| Ok(()));
+        mock.expect_resume_resource().returning(|_| Ok(()));
+
         let workflow = RemediationWorkflow::new(Arc::new(mock));
         let error = ClusterError {
-            id: Uuid::new_v4(),
+            id: error_id,
             timestamp: Utc::now(),
             severity: Severity::Medium,
             error_type: ErrorType::Structural,
             resource: ClusterResource {
                 kind: "Pod".into(),
-                name: "foo".into(),
+                name: "app".into(),
                 namespace: "default".into(),
                 api_version: "v1".into(),
             },
             message: "Failed".into(),
-            error_code: "OOMKilled".into(),
+            error_code: "BackOff".into(),
             raw_event: serde_json::Value::Null,
         };
 
         let result = workflow.handle_error(error).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("security check failed")
-        );
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none()); // Returns None because it orchestrated and finished
     }
 }

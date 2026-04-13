@@ -1,6 +1,7 @@
 use crate::application::RemediationWorkflow;
 use crate::domain::models::*;
 use crate::domain::services::Remediator;
+use crate::infrastructure::startup_monitor::StartupMonitor;
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::Event;
@@ -10,14 +11,18 @@ use uuid::Uuid;
 
 pub struct K8sWatcher {
     client: Client,
+    startup_monitor: Option<Arc<StartupMonitor>>,
 }
 
 impl K8sWatcher {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(startup_monitor: Option<Arc<StartupMonitor>>) -> Result<Self> {
         let client = Client::try_default()
             .await
             .context("failed to create K8s client")?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            startup_monitor,
+        })
     }
 
     /// Monitors events and triggers the remediation workflow.
@@ -55,34 +60,50 @@ impl K8sWatcher {
         e: Event,
         workflow: Arc<RemediationWorkflow<R>>,
     ) -> Result<()> {
-        // Filter for errors (e.g., Warning events with OOMKilled or BackOff)
-        if e.type_ == Some("Warning".into()) {
-            let reason = e.reason.clone().unwrap_or_default();
-            if reason == "OOMKilled" || reason == "BackOff" {
-                println!(
-                    "[Watcher] Detected target error: {} in {}",
-                    reason,
-                    e.metadata.name.clone().unwrap_or_default()
-                );
+        let reason = e.reason.clone().unwrap_or_default();
+        let message = e.message.clone().unwrap_or_default();
+        let type_ = e.type_.clone().unwrap_or_default();
 
-                let cluster_error = ClusterError {
-                    id: Uuid::new_v4(),
-                    timestamp: chrono::Utc::now(),
-                    severity: Severity::High,
-                    error_type: ErrorType::Structural,
-                    resource: ClusterResource {
-                        kind: e.involved_object.kind.clone().unwrap_or_default(),
-                        name: e.involved_object.name.clone().unwrap_or_default(),
-                        namespace: e.involved_object.namespace.clone().unwrap_or_default(),
-                        api_version: e.involved_object.api_version.clone().unwrap_or_default(),
-                    },
-                    message: e.message.clone().unwrap_or_default(),
-                    error_code: reason,
-                    raw_event: serde_json::to_value(&e).unwrap_or(serde_json::Value::Null),
-                };
+        let resource = ClusterResource {
+            kind: e.involved_object.kind.clone().unwrap_or_default(),
+            name: e.involved_object.name.clone().unwrap_or_default(),
+            namespace: e.involved_object.namespace.clone().unwrap_or_default(),
+            api_version: e.involved_object.api_version.clone().unwrap_or_default(),
+        };
 
-                let _ = workflow.handle_error(cluster_error).await;
+        // Track Startup Events (Normal)
+        #[allow(clippy::collapsible_if)]
+        if type_ == "Normal" && (reason == "Started" || reason == "Ready") {
+            if let Some(ref monitor) = self.startup_monitor {
+                monitor
+                    .record_event(StartupEvent {
+                        timestamp: chrono::Utc::now(),
+                        resource: resource.clone(),
+                        status: reason.clone(),
+                    })
+                    .await?;
             }
+        }
+
+        // Filter for errors (Warning)
+        if type_ == "Warning" && (reason == "OOMKilled" || reason == "BackOff") {
+            println!(
+                "[Watcher] Detected target error: {} in {}",
+                reason, resource.name
+            );
+
+            let cluster_error = ClusterError {
+                id: Uuid::new_v4(),
+                timestamp: chrono::Utc::now(),
+                severity: Severity::High,
+                error_type: ErrorType::Structural,
+                resource,
+                message,
+                error_code: reason,
+                raw_event: serde_json::to_value(&e).unwrap_or(serde_json::Value::Null),
+            };
+
+            let _ = workflow.handle_error(cluster_error).await;
         }
         Ok(())
     }

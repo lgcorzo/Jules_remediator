@@ -2,6 +2,27 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StartupPhase {
+    Initial,
+    InProcess,
+    Stabilized,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartupEvent {
+    pub timestamp: DateTime<Utc>,
+    pub resource: ClusterResource,
+    pub status: String, // "Started", "Ready", "Failed"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClusterStartupState {
+    pub phase: StartupPhase,
+    pub event_count: usize,
+    pub start_time: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ErrorType {
@@ -52,6 +73,8 @@ pub enum RiskScore {
 pub struct FixProposal {
     pub error_id: Uuid,
     pub proposal_id: Uuid,
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid, // Track the iterative dialogue
     pub code_change: String,
     pub explanation: String,
     pub risk_score: RiskScore,
@@ -60,8 +83,31 @@ pub struct FixProposal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationMessage {
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub role: String, // "agent" or "jules"
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemediationStep {
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub command: String,
+    pub success: bool,
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemediationOutcome {
     pub proposal_id: Uuid,
+    #[serde(rename = "session_id")]
+    pub tracking_id: Uuid,
     pub success: bool,
     pub latency_ms: u64,
     pub logs: String,
