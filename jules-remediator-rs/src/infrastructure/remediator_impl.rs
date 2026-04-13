@@ -1,27 +1,26 @@
 use crate::domain::models::*;
 use crate::domain::services::Remediator;
-use crate::infrastructure::jules_dispatcher::JulesDispatcher;
-use crate::infrastructure::mlflow_logger::MlflowLogger;
-use crate::infrastructure::persistence::SurrealPersistence;
-use anyhow::Result;
-use std::sync::Arc;
-
 use crate::infrastructure::git_client::GitClient;
+use crate::infrastructure::jules_dispatcher::JulesDispatcher;
+use crate::infrastructure::persistence::SurrealPersistence;
+use crate::infrastructure::startup_monitor::StartupMonitor;
+use anyhow::Result;
+use kube::Api;
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct RemediatorImpl {
     dispatcher: Arc<JulesDispatcher>,
-    logger: Arc<MlflowLogger>,
     persistence: Arc<SurrealPersistence>,
     git_client: Arc<GitClient>,
     startup_monitor: Arc<StartupMonitor>,
 }
 
 impl RemediatorImpl {
-    pub async fn new(dispatcher_uri: &str, mlflow_uri: &str, db_path: &str, git_repo_path: &str) -> Result<Self> {
+    pub async fn new(dispatcher_uri: &str, db_path: &str, git_repo_path: &str) -> Result<Self> {
         let persistence = Arc::new(SurrealPersistence::new(db_path).await?);
         Ok(Self {
             dispatcher: Arc::new(JulesDispatcher::new(dispatcher_uri).await?),
-            logger: Arc::new(MlflowLogger::new(mlflow_uri.into())),
             persistence: persistence.clone(),
             git_client: Arc::new(GitClient::new(git_repo_path.into())),
             startup_monitor: Arc::new(StartupMonitor::new(persistence)),
@@ -61,14 +60,15 @@ impl Remediator for RemediatorImpl {
             println!("[Remediator] Running command: {}", cmd);
             
             // Execute the command using tokio::process::Command
-            let mut child = tokio::process::Command::new("sh")
+            let output = tokio::process::Command::new("sh")
                 .arg("-c")
                 .arg(cmd)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
-                .spawn()?;
+                .spawn()?
+                .wait_with_output()
+                .await?;
 
-            let output = child.wait_with_output().await?;
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -80,10 +80,10 @@ impl Remediator for RemediatorImpl {
                 session_id: proposal.session_id,
                 timestamp: chrono::Utc::now(),
                 command: cmd.clone(),
-                success,
+                success: output.status.success(),
                 exit_code: output.status.code().unwrap_or(-1),
-                stdout: stdout.into(),
-                stderr: stderr.into(),
+                stdout: String::from_utf8_lossy(&output.stdout).into(),
+                stderr: String::from_utf8_lossy(&output.stderr).into(),
             }).await?;
         } else {
             logs.push_str("No remediation command provided in proposal.");
@@ -115,21 +115,15 @@ impl Remediator for RemediatorImpl {
         match resource.kind.as_str() {
             "Pod" => {
                 let pods: Api<k8s_openapi::api::core::v1::Pod> = Api::namespaced(client, &resource.namespace);
-                if let Ok(pod) = pods.get(&resource.name).await {
-                    if let Some(status) = pod.status {
-                        if let Some(phase) = status.phase {
-                            return Ok(phase == "Running" || phase == "Succeeded");
-                        }
-                    }
+                if let Some(status) = pods.get(&resource.name).await.ok().and_then(|p| p.status) {
+                    return Ok(status.phase.as_deref().is_some_and(|p| p == "Running" || p == "Succeeded"));
                 }
             },
             "Deployment" => {
                 let deployments: Api<k8s_openapi::api::apps::v1::Deployment> = Api::namespaced(client, &resource.namespace);
-                if let Ok(deploy) = deployments.get(&resource.name).await {
-                    if let Some(status) = deploy.status {
-                        return Ok(status.ready_replicas.unwrap_or(0) > 0);
-                    }
-                }
+            if let Some(status) = deployments.get(&resource.name).await.ok().and_then(|d| d.status) {
+                return Ok(status.ready_replicas.unwrap_or(0) > 0);
+            }
             },
             _ => {
                 println!("[Remediator] Verification logic for {} not yet implemented", resource.kind);
@@ -176,7 +170,7 @@ impl Remediator for RemediatorImpl {
         // Use kubectl to scale to 0
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
-            .arg(&resource.kind.to_lowercase())
+            .arg(resource.kind.to_lowercase())
             .arg(&resource.name)
             .arg("-n")
             .arg(&resource.namespace)
@@ -198,7 +192,7 @@ impl Remediator for RemediatorImpl {
         // Use kubectl to scale to 1 (Assume 1 as default for now, could be improved to fetch original replicas)
         let output = tokio::process::Command::new("kubectl")
             .arg("scale")
-            .arg(&resource.kind.to_lowercase())
+            .arg(resource.kind.to_lowercase())
             .arg(&resource.name)
             .arg("-n")
             .arg(&resource.namespace)

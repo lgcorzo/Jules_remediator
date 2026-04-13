@@ -1,3 +1,7 @@
+pub mod git_client;
+pub mod jules_dispatcher;
+pub mod k8s_watcher;
+pub mod mlflow_logger;
 pub mod persistence;
 pub mod remediator_impl;
 pub mod startup_monitor;
