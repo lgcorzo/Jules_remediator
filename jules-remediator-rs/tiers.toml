@@ -1,0 +1,23 @@
+# Tiered Initialization Configuration
+# This file defines the sequence of startup for cluster resources.
+# Jules will proactively manage these tiers to avoid "Boot Storms".
+
+[tier.0]
+name = "Bootstrap"
+namespaces = ["flux-system"]
+anchor_pods = ["source-controller"]
+
+[tier.1]
+name = "Foundation"
+namespaces = ["storage", "confluent"]
+resources = ["postgresql", "minio", "redis", "rabbitmq", "elasticsearch", "kafka"]
+
+[tier.2]
+name = "Core Services"
+namespaces = ["monitoring", "security", "openziti"]
+resources = ["keycloak", "loki", "prometheus", "ziti-controller"]
+
+[tier.3]
+name = "Applications"
+namespaces = ["llm-apps", "orchestrators"]
+# Tier 3 resources are proactively suspended (scaled to 0) during a Boot Storm.

@@ -7,6 +7,15 @@ pub enum StartupPhase {
     Initial,
     InProcess,
     Stabilized,
+    Controlled, // Added for tiered release
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
+pub enum DependencyTier {
+    Bootstrap = 0,
+    Foundation = 1,
+    CoreServices = 2,
+    Applications = 3,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +30,8 @@ pub struct ClusterStartupState {
     pub phase: StartupPhase,
     pub event_count: usize,
     pub start_time: DateTime<Utc>,
+    pub current_tier: DependencyTier,
+    pub boot_storm_detected: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

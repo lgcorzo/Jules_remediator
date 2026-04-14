@@ -23,12 +23,54 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
         // --- Startup Orchestration ---
         let startup_state = self.remediator.get_startup_state().await?;
+        
+        if startup_state.boot_storm_detected || matches!(startup_state.phase, StartupPhase::Controlled) {
+            println!("[Workflow] Controlled Startup active. Current phase: {:?}", startup_state.phase);
+            
+            // Tier 0: Bootstrap Anchor Check (flux-system/source-controller)
+            let bootstrap_resource = ClusterResource {
+                kind: "Pod".into(),
+                name: "source-controller".into(),
+                namespace: "flux-system".into(),
+                api_version: "v1".into(),
+            };
+            
+            if !self.remediator.verify_resource(&bootstrap_resource).await.unwrap_or(false) {
+                println!("[Workflow] Tier 0 (Bootstrap) not ready. Ensuring source-controller...");
+                // In a real scenario, this would trigger a scale-up or restart.
+                // For now, we block until it's ready.
+                return Ok(None);
+            }
+
+            // Tie-break: If the error resource is Tier 3 (Application), proactively scale to 0 if it's not already.
+            // (Assuming Namespace-based tier mapping for the demo)
+            if error.resource.namespace == "llm-apps" || error.resource.namespace == "orchestrators" {
+                println!("[Workflow] Boot Storm: Suspending Tier 3 resource {} (namespace: {})", error.resource.name, error.resource.namespace);
+                self.remediator.pause_resource(&error.resource).await?;
+                return Ok(None);
+            }
+
+            // Sequential Release Logic
+            // In a real implementation, this would be a background loop.
+            // Here we check dependencies and release if tiers 1 & 2 are ready.
+            if let Some(dep) = self.remediator.check_startup_dependency(&error.resource).await? {
+                println!("[Workflow] Tiered dependency block: {} is waiting for {}.", error.resource.name, dep);
+                self.remediator.pause_resource(&error.resource).await?;
+                return Ok(None);
+            }
+            
+            // If we reach here, dependencies are ready. Resume.
+            self.remediator.resume_resource(&error.resource).await?;
+            return Ok(None);
+        }
+
         if matches!(
             startup_state.phase,
             StartupPhase::Initial | StartupPhase::InProcess
         ) {
+            // ... (Legacy reactive logic remains as fallback)
             let mut attempts = 0;
-            let max_wait_attempts = 10; // 10 attempts * 30s = 5 minutes max wait
+            let max_wait_attempts = 10;
 
             while let Some(dep) = self
                 .remediator
@@ -164,6 +206,8 @@ mod tests {
                 phase: StartupPhase::Stabilized,
                 event_count: 100,
                 start_time: Utc::now(),
+                current_tier: DependencyTier::Applications,
+                boot_storm_detected: false,
             })
         });
 
@@ -232,6 +276,8 @@ mod tests {
                 phase: StartupPhase::Initial,
                 event_count: 2,
                 start_time: Utc::now(),
+                current_tier: DependencyTier::Bootstrap,
+                boot_storm_detected: false,
             })
         });
 
