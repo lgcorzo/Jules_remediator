@@ -121,11 +121,25 @@ impl Remediator for RemediatorImpl {
             "Pod" => {
                 let pods: Api<k8s_openapi::api::core::v1::Pod> =
                     Api::namespaced(client, &resource.namespace);
-                if let Some(status) = pods.get(&resource.name).await.ok().and_then(|p| p.status) {
-                    return Ok(status
-                        .phase
-                        .as_deref()
-                        .is_some_and(|p| p == "Running" || p == "Succeeded"));
+                if let Ok(pod) = pods.get(&resource.name).await {
+                    let phase_ok = pod
+                        .status
+                        .as_ref()
+                        .and_then(|status| status.phase.as_deref())
+                        .is_some_and(|p| p == "Running" || p == "Succeeded");
+
+                    let ready_ok = pod
+                        .status
+                        .as_ref()
+                        .and_then(|status| status.conditions.as_ref())
+                        .map(|conds| {
+                            conds
+                                .iter()
+                                .any(|c| c.type_ == "Ready" && c.status == "True")
+                        })
+                        .unwrap_or(false);
+
+                    return Ok(phase_ok && ready_ok);
                 }
             }
             "Deployment" => {
