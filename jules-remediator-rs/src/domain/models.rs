@@ -7,7 +7,7 @@ pub enum StartupPhase {
     Initial,
     InProcess,
     Stabilized,
-    Controlled, // Added for tiered release
+    Controlled,    // Added for tiered release
     Orchestrating, // Master orchestration loop active
 }
 
@@ -33,7 +33,7 @@ pub struct ClusterStartupState {
     pub start_time: DateTime<Utc>,
     pub current_tier: DependencyTier,
     pub boot_storm_detected: bool,
-    pub batch_size: usize,      // For Tier 3 release
+    pub batch_size: usize, // For Tier 3 release
     pub release_interval_secs: u64,
 }
 

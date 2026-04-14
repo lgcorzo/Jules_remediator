@@ -50,7 +50,7 @@ impl StartupMonitor {
             start_time: self.start_time,
             current_tier: DependencyTier::Bootstrap, // Default
             boot_storm_detected,
-            batch_size: 2,           // Configurable batch size for Tier 3
+            batch_size: 2,             // Configurable batch size for Tier 3
             release_interval_secs: 60, // 1 minute between batches
         })
     }
@@ -200,7 +200,10 @@ impl StartupMonitor {
     }
 
     /// Returns a list of resources belonging to a specific tier sequence.
-    pub async fn get_resources_for_tier(&self, tier: DependencyTier) -> Result<Vec<ClusterResource>> {
+    pub async fn get_resources_for_tier(
+        &self,
+        tier: DependencyTier,
+    ) -> Result<Vec<ClusterResource>> {
         let namespaces = match tier {
             DependencyTier::Bootstrap => vec!["flux-system"],
             DependencyTier::Foundation => vec!["storage", "confluent"],
