@@ -207,22 +207,26 @@ impl Remediator for RemediatorImpl {
         );
 
         let client = kube::Client::try_default().await?;
-        let patch = serde_json::json!([
-            { "op": "replace", "path": "/spec/replicas", "value": 0 }
-        ]);
+        let patch = serde_json::json!({
+            "apiVersion": resource.api_version,
+            "kind": resource.kind,
+            "spec": {
+                "replicas": 0
+            }
+        });
         let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             _ => {
@@ -241,22 +245,26 @@ impl Remediator for RemediatorImpl {
         );
 
         let client = kube::Client::try_default().await?;
-        let patch = serde_json::json!([
-            { "op": "replace", "path": "/spec/replicas", "value": 1 }
-        ]);
+        let patch = serde_json::json!({
+            "apiVersion": resource.api_version,
+            "kind": resource.kind,
+            "spec": {
+                "replicas": 1
+            }
+        });
         let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             _ => {
