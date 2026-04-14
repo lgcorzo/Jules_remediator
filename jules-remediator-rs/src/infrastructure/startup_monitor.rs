@@ -64,7 +64,10 @@ impl StartupMonitor {
         let client = match kube::Client::try_default().await {
             Ok(c) => Some(c),
             Err(e) => {
-                eprintln!("[StartupMonitor] Warning: Could not create K8s client (falling back to heuristic): {:?}", e);
+                eprintln!(
+                    "[StartupMonitor] Warning: Could not create K8s client (falling back to heuristic): {:?}",
+                    e
+                );
                 None
             }
         };
@@ -77,15 +80,21 @@ impl StartupMonitor {
             if let Some(c) = &client {
                 let pods: kube::Api<k8s_openapi::api::core::v1::Pod> =
                     kube::Api::namespaced(c.clone(), &resource.namespace);
-                
+
                 if let Ok(pod_list) = pods.list(&kube::api::ListParams::default()).await {
                     for pod in pod_list {
                         let name = pod.metadata.name.unwrap_or_default();
                         if name.contains(dep_name) {
                             live_found = true;
-                            live_ready = pod.status.and_then(|status| status.conditions).map(|conds| {
-                                conds.iter().any(|c| c.type_ == "Ready" && c.status == "True")
-                            }).unwrap_or(false);
+                            live_ready = pod
+                                .status
+                                .and_then(|status| status.conditions)
+                                .map(|conds| {
+                                    conds
+                                        .iter()
+                                        .any(|c| c.type_ == "Ready" && c.status == "True")
+                                })
+                                .unwrap_or(false);
                             break;
                         }
                     }
