@@ -62,15 +62,24 @@ impl<R: Remediator> RemediationWorkflow<R> {
             }
 
             if attempts > 0 {
-                println!("[Workflow] Dependency resolved or timeout reached. Resuming resource '{}'...", error.resource.name);
+                println!(
+                    "[Workflow] Dependency resolved or timeout reached. Resuming resource '{}'...",
+                    error.resource.name
+                );
                 self.remediator.resume_resource(&error.resource).await?;
-                
+
                 // Stability Phase: Wait 15s and verify health to ensure no immediate restart
                 tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
                 if self.remediator.verify_resource(&error.resource).await? {
-                    println!("[Workflow] Resource '{}' started successfully without restarts.", error.resource.name);
+                    println!(
+                        "[Workflow] Resource '{}' started successfully without restarts.",
+                        error.resource.name
+                    );
                 } else {
-                    println!("[Workflow] Warning: Resource '{}' is still unhealthy after resumption.", error.resource.name);
+                    println!(
+                        "[Workflow] Warning: Resource '{}' is still unhealthy after resumption.",
+                        error.resource.name
+                    );
                 }
 
                 return Ok(None);
