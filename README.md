@@ -16,6 +16,7 @@ Aethelgard operates as a "Dark System," silently maintaining the cluster's stabi
 - **The Orchestrator (ZeroClaw)**: Rust-based MCP host for AI coordination.
 - **The Executor (Jules MCP)**: Autonomous AI engineering agent.
 - **The Sync (FluxCD)**: Automated GitOps reconciliation.
+- **Starting Process Control**: Active dependency verified startup sequence to guarantee zero restarts during cluster initialization.
 - `src/application/`: Orchestration and use case handling.
 - `src/infrastructure/`: Kubernetes and Jules SDK integrations.
 - `src/interface/`: Webhook entry points for FluxCD.
