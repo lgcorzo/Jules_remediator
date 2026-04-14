@@ -88,11 +88,13 @@ impl SurrealPersistence {
         for event in events {
             if event.status == "Started" {
                 *counts.entry(event.resource.name.clone()).or_insert(0) += 1;
-                if counts[&event.resource.name] > 2 {
-                    if !unstable.iter().any(|r: &ClusterResource| r.name == event.resource.name) {
+                if counts[&event.resource.name] > 2
+                    && !unstable
+                        .iter()
+                        .any(|r: &ClusterResource| r.name == event.resource.name)
+                    {
                         unstable.push(event.resource.clone());
                     }
-                }
             }
         }
 

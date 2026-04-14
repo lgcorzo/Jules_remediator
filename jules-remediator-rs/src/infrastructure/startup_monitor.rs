@@ -61,7 +61,9 @@ impl StartupMonitor {
 
         let recent_starts = timeline
             .iter()
-            .filter(|e| e.status == "Started" && now.signed_duration_since(e.timestamp) < recent_threshold)
+            .filter(|e| {
+                e.status == "Started" && now.signed_duration_since(e.timestamp) < recent_threshold
+            })
             .count();
 
         Ok(recent_starts >= 10)
@@ -72,7 +74,7 @@ impl StartupMonitor {
         // In a real scenario, this would load tiers.toml and query K8s API.
         // For this implementation, we will use the logic described in the plan.
         let client = kube::Client::try_default().await?;
-        
+
         let namespaces = match tier {
             DependencyTier::Bootstrap => vec!["flux-system"],
             DependencyTier::Foundation => vec!["storage", "confluent"],
@@ -84,20 +86,29 @@ impl StartupMonitor {
         let mut total_count = 0;
 
         for ns in namespaces {
-            let pods: kube::Api<k8s_openapi::api::core::v1::Pod> = kube::Api::namespaced(client.clone(), ns);
+            let pods: kube::Api<k8s_openapi::api::core::v1::Pod> =
+                kube::Api::namespaced(client.clone(), ns);
             let pod_list = pods.list(&kube::api::ListParams::default()).await?;
             for pod in pod_list {
                 total_count += 1;
-                let is_ready = pod.status.and_then(|s| s.conditions).map(|conds| {
-                    conds.iter().any(|c| c.type_ == "Ready" && c.status == "True")
-                }).unwrap_or(false);
+                let is_ready = pod
+                    .status
+                    .and_then(|s| s.conditions)
+                    .map(|conds| {
+                        conds
+                            .iter()
+                            .any(|c| c.type_ == "Ready" && c.status == "True")
+                    })
+                    .unwrap_or(false);
                 if is_ready {
                     ready_count += 1;
                 }
             }
         }
 
-        if total_count == 0 { return Ok(1.0); }
+        if total_count == 0 {
+            return Ok(1.0);
+        }
         Ok(ready_count as f32 / total_count as f32)
     }
 
