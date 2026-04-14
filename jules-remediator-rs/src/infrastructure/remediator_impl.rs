@@ -212,19 +212,19 @@ impl Remediator for RemediatorImpl {
                 "replicas": 0
             }
         });
-        let params = kube::api::PatchParams::apply("jules-remediator");
+        let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
@@ -245,19 +245,19 @@ impl Remediator for RemediatorImpl {
                 "replicas": 1
             }
         });
-        let params = kube::api::PatchParams::apply("jules-remediator");
+        let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
                     .await?;
             }
             _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
