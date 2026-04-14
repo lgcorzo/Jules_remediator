@@ -229,6 +229,8 @@ mod tests {
                 start_time: Utc::now(),
                 current_tier: DependencyTier::Applications,
                 boot_storm_detected: false,
+                batch_size: 2,
+                release_interval_secs: 60,
             })
         });
 
@@ -299,6 +301,8 @@ mod tests {
                 start_time: Utc::now(),
                 current_tier: DependencyTier::Bootstrap,
                 boot_storm_detected: false,
+                batch_size: 2,
+                release_interval_secs: 60,
             })
         });
 

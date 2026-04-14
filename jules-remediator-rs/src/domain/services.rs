@@ -34,4 +34,10 @@ pub trait Remediator {
 
     /// Identifies if a resource is waiting for a dependency.
     async fn check_startup_dependency(&self, resource: &ClusterResource) -> Result<Option<String>>;
+
+    /// Lists all manageable resources (Deployments/StatefulSets) in a namespace.
+    async fn list_resources(&self, namespace: &str) -> Result<Vec<ClusterResource>>;
+
+    /// Gets all resources defined in a specific tier mapping.
+    async fn get_tier_resources(&self, tier: DependencyTier) -> Result<Vec<ClusterResource>>;
 }
