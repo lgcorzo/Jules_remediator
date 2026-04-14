@@ -202,32 +202,33 @@ impl Remediator for RemediatorImpl {
 
     async fn pause_resource(&self, resource: &ClusterResource) -> Result<()> {
         println!(
-            "[Remediator] Pausing resource {}/{} (Scaling to 0)",
-            resource.namespace, resource.name
+            "[Remediator] Scaling DOWN resource: Kind={}, Namespace={}, Name={}",
+            resource.kind, resource.namespace, resource.name
         );
 
         let client = kube::Client::try_default().await?;
-        let patch = serde_json::json!({
-            "spec": {
-                "replicas": 0
-            }
-        });
+        let patch = serde_json::json!([
+            { "op": "replace", "path": "/spec/replicas", "value": 0 }
+        ]);
         let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
                     .await?;
             }
-            _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
+            _ => {
+                println!("[Remediator] Warning: Scaling NOT supported for kind {}", resource.kind);
+                anyhow::bail!("Scaling for kind {} not implemented", resource.kind)
+            },
         }
 
         Ok(())
@@ -235,32 +236,33 @@ impl Remediator for RemediatorImpl {
 
     async fn resume_resource(&self, resource: &ClusterResource) -> Result<()> {
         println!(
-            "[Remediator] Resuming resource {}/{} (Scaling to 1)",
-            resource.namespace, resource.name
+            "[Remediator] Scaling UP resource: Kind={}, Namespace={}, Name={}",
+            resource.kind, resource.namespace, resource.name
         );
 
         let client = kube::Client::try_default().await?;
-        let patch = serde_json::json!({
-            "spec": {
-                "replicas": 1
-            }
-        });
+        let patch = serde_json::json!([
+            { "op": "replace", "path": "/spec/replicas", "value": 1 }
+        ]);
         let params = kube::api::PatchParams::default();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Json(patch))
                     .await?;
             }
-            _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
+            _ => {
+                println!("[Remediator] Warning: Scaling NOT supported for kind {}", resource.kind);
+                anyhow::bail!("Scaling for kind {} not implemented", resource.kind)
+            },
         }
 
         Ok(())
