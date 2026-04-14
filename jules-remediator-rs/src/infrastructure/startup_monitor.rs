@@ -61,24 +61,63 @@ impl StartupMonitor {
             "mysql", "mariadb", "postgres", "redis", "mongodb", "rabbitmq",
         ];
 
+        let client = match kube::Client::try_default().await {
+            Ok(c) => Some(c),
+            Err(e) => {
+                eprintln!("[StartupMonitor] Warning: Could not create K8s client (falling back to heuristic): {:?}", e);
+                None
+            }
+        };
+
         for dep_name in common_deps {
-            // Check if there's a resource with this name in the same namespace
-            // and see if it has a "Ready" event in the timeline.
-            let is_ready = timeline.iter().any(|e| {
+            let mut live_found = false;
+            let mut live_ready = false;
+
+            // 1. Try Live Check
+            if let Some(c) = &client {
+                let pods: kube::Api<k8s_openapi::api::core::v1::Pod> =
+                    kube::Api::namespaced(c.clone(), &resource.namespace);
+                
+                if let Ok(pod_list) = pods.list(&kube::api::ListParams::default()).await {
+                    for pod in pod_list {
+                        let name = pod.metadata.name.unwrap_or_default();
+                        if name.contains(dep_name) {
+                            live_found = true;
+                            live_ready = pod.status.and_then(|status| status.conditions).map(|conds| {
+                                conds.iter().any(|c| c.type_ == "Ready" && c.status == "True")
+                            }).unwrap_or(false);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if live_found {
+                if live_ready {
+                    continue; // Dependency is healthy
+                } else {
+                    println!("[StartupMonitor] Live check: {} is NOT ready.", dep_name);
+                    return Ok(Some(dep_name.to_string())); // Block
+                }
+            }
+
+            // 2. Fallback to Timeline Heuristic
+            let timeline_ready = timeline.iter().any(|e| {
                 e.resource.namespace == resource.namespace
                     && e.resource.name.contains(dep_name)
                     && e.status == "Ready"
             });
 
-            if !is_ready {
-                // Check if such a resource actually EXISTS (or was attempted to start)
-                let exists = timeline.iter().any(|e| {
-                    e.resource.namespace == resource.namespace && e.resource.name.contains(dep_name)
-                });
+            if timeline_ready {
+                continue;
+            }
 
-                if exists {
-                    return Ok(Some(dep_name.to_string()));
-                }
+            let timeline_exists = timeline.iter().any(|e| {
+                e.resource.namespace == resource.namespace && e.resource.name.contains(dep_name)
+            });
+
+            if timeline_exists {
+                return Ok(Some(dep_name.to_string()));
             }
         }
 

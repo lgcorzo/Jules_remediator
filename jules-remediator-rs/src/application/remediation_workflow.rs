@@ -23,30 +23,57 @@ impl<R: Remediator> RemediationWorkflow<R> {
 
         // --- Startup Orchestration ---
         let startup_state = self.remediator.get_startup_state().await?;
-        #[allow(clippy::collapsible_if)]
         if matches!(
             startup_state.phase,
             StartupPhase::Initial | StartupPhase::InProcess
         ) {
-            if let Some(dep) = self
+            let mut attempts = 0;
+            let max_wait_attempts = 10; // 10 attempts * 30s = 5 minutes max wait
+
+            while let Some(dep) = self
                 .remediator
                 .check_startup_dependency(&error.resource)
                 .await?
             {
+                if attempts == 0 {
+                    println!(
+                        "[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...",
+                        error.resource.name, dep
+                    );
+                    self.remediator.pause_resource(&error.resource).await?;
+                }
+
+                if attempts >= max_wait_attempts {
+                    println!(
+                        "[Workflow] Timeout waiting for dependency '{}' for resource '{}'. Resuming anyway to avoid deadlock.",
+                        dep, error.resource.name
+                    );
+                    break;
+                }
+
                 println!(
-                    "[Workflow] Detected startup dependency: {} is waiting for {}. Pausing...",
-                    error.resource.name, dep
+                    "[Workflow] Still waiting for dependency '{}' (Attempt {}/{})...",
+                    dep,
+                    attempts + 1,
+                    max_wait_attempts
                 );
-
-                // Orchestrate: Pause this resource until dependency is ready
-                self.remediator.pause_resource(&error.resource).await?;
-
-                // (Logic to wait for dep or just exit and let the next event retry)
-                // For now, we resume as a placeholder or exit to let K8s retry later
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                self.remediator.resume_resource(&error.resource).await?;
+                attempts += 1;
+            }
 
-                return Ok(None); // Let the next event trigger logic if it still fails
+            if attempts > 0 {
+                println!("[Workflow] Dependency resolved or timeout reached. Resuming resource '{}'...", error.resource.name);
+                self.remediator.resume_resource(&error.resource).await?;
+                
+                // Stability Phase: Wait 15s and verify health to ensure no immediate restart
+                tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+                if self.remediator.verify_resource(&error.resource).await? {
+                    println!("[Workflow] Resource '{}' started successfully without restarts.", error.resource.name);
+                } else {
+                    println!("[Workflow] Warning: Resource '{}' is still unhealthy after resumption.", error.resource.name);
+                }
+
+                return Ok(None);
             }
         }
 
@@ -199,13 +226,15 @@ mod tests {
             })
         });
 
-        // Detect dependency
+        // Detect dependency: Return Some first, then None to break loop
+        let mut dep_results = vec![Ok(None), Ok(Some("db".into()))];
         mock.expect_check_startup_dependency()
-            .returning(|_| Ok(Some("db".into())));
+            .returning(move |_| dep_results.pop().unwrap());
 
-        // Expect pause and resume
-        mock.expect_pause_resource().returning(|_| Ok(()));
-        mock.expect_resume_resource().returning(|_| Ok(()));
+        // Expect pause, resume and verify
+        mock.expect_pause_resource().once().returning(|_| Ok(()));
+        mock.expect_resume_resource().once().returning(|_| Ok(()));
+        mock.expect_verify_resource().once().returning(|_| Ok(true));
 
         let workflow = RemediationWorkflow::new(Arc::new(mock));
         let error = ClusterError {
@@ -226,6 +255,6 @@ mod tests {
 
         let result = workflow.handle_error(error).await;
         assert!(result.is_ok());
-        assert!(result.unwrap().is_none()); // Returns None because it orchestrated and finished
+        assert!(result.unwrap().is_none());
     }
 }
