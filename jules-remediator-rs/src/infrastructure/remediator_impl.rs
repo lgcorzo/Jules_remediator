@@ -202,31 +202,42 @@ impl Remediator for RemediatorImpl {
 
     async fn pause_resource(&self, resource: &ClusterResource) -> Result<()> {
         println!(
-            "[Remediator] Scaling DOWN resource: Kind={}, Namespace={}, Name={}",
+            "[Remediator] Scaling DOWN resource (SSA): Kind={}, Namespace={}, Name={}",
             resource.kind, resource.namespace, resource.name
         );
 
         let client = kube::Client::try_default().await?;
+        let api_version = if resource.api_version.is_empty() {
+            "apps/v1".to_string()
+        } else {
+            resource.api_version.clone()
+        };
+
         let patch = serde_json::json!({
-            "apiVersion": resource.api_version,
+            "apiVersion": api_version,
             "kind": resource.kind,
+            "metadata": {
+                "name": resource.name,
+                "namespace": resource.namespace,
+            },
             "spec": {
                 "replicas": 0
             }
         });
-        let params = kube::api::PatchParams::default();
+
+        let params = kube::api::PatchParams::apply("jules-remediator").force();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
                     .await?;
             }
             _ => {
@@ -240,31 +251,42 @@ impl Remediator for RemediatorImpl {
 
     async fn resume_resource(&self, resource: &ClusterResource) -> Result<()> {
         println!(
-            "[Remediator] Scaling UP resource: Kind={}, Namespace={}, Name={}",
+            "[Remediator] Scaling UP resource (SSA): Kind={}, Namespace={}, Name={}",
             resource.kind, resource.namespace, resource.name
         );
 
         let client = kube::Client::try_default().await?;
+        let api_version = if resource.api_version.is_empty() {
+            "apps/v1".to_string()
+        } else {
+            resource.api_version.clone()
+        };
+
         let patch = serde_json::json!({
-            "apiVersion": resource.api_version,
+            "apiVersion": api_version,
             "kind": resource.kind,
+            "metadata": {
+                "name": resource.name,
+                "namespace": resource.namespace,
+            },
             "spec": {
                 "replicas": 1
             }
         });
-        let params = kube::api::PatchParams::default();
+
+        let params = kube::api::PatchParams::apply("jules-remediator").force();
 
         match resource.kind.as_str() {
             "Deployment" => {
                 let api: Api<k8s_openapi::api::apps::v1::Deployment> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
                     .await?;
             }
             "StatefulSet" => {
                 let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
                     Api::namespaced(client, &resource.namespace);
-                api.patch(&resource.name, &params, &kube::api::Patch::Merge(patch))
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
                     .await?;
             }
             _ => {
