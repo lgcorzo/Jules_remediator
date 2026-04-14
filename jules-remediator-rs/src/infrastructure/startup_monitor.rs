@@ -50,6 +50,8 @@ impl StartupMonitor {
             start_time: self.start_time,
             current_tier: DependencyTier::Bootstrap, // Default
             boot_storm_detected,
+            batch_size: 2,             // Configurable batch size for Tier 3
+            release_interval_secs: 60, // 1 minute between batches
         })
     }
 
@@ -195,6 +197,56 @@ impl StartupMonitor {
         }
 
         Ok(None)
+    }
+
+    /// Returns a list of resources belonging to a specific tier sequence.
+    pub async fn get_resources_for_tier(
+        &self,
+        tier: DependencyTier,
+    ) -> Result<Vec<ClusterResource>> {
+        let namespaces = match tier {
+            DependencyTier::Bootstrap => vec!["flux-system"],
+            DependencyTier::Foundation => vec!["storage", "confluent"],
+            DependencyTier::CoreServices => vec!["monitoring", "security", "openziti"],
+            DependencyTier::Applications => vec!["llm-apps", "orchestrators"],
+        };
+
+        let client = kube::Client::try_default().await?;
+        let mut resources = Vec::new();
+
+        for ns in namespaces {
+            // 1. Deployments
+            let deployments: kube::Api<k8s_openapi::api::apps::v1::Deployment> =
+                kube::Api::namespaced(client.clone(), ns);
+            let d_list = deployments.list(&kube::api::ListParams::default()).await?;
+            for d in d_list.items {
+                if let Some(name) = d.metadata.name {
+                    resources.push(ClusterResource {
+                        kind: "Deployment".to_string(),
+                        name,
+                        namespace: ns.to_string(),
+                        api_version: "apps/v1".to_string(),
+                    });
+                }
+            }
+
+            // 2. StatefulSets
+            let statefulsets: kube::Api<k8s_openapi::api::apps::v1::StatefulSet> =
+                kube::Api::namespaced(client.clone(), ns);
+            let s_list = statefulsets.list(&kube::api::ListParams::default()).await?;
+            for s in s_list.items {
+                if let Some(name) = s.metadata.name {
+                    resources.push(ClusterResource {
+                        kind: "StatefulSet".to_string(),
+                        name,
+                        namespace: ns.to_string(),
+                        api_version: "apps/v1".to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(resources)
     }
 }
 

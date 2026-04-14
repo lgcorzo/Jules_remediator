@@ -253,4 +253,45 @@ impl Remediator for RemediatorImpl {
             .is_waiting_for_dependency(resource)
             .await
     }
+
+    async fn list_resources(&self, namespace: &str) -> Result<Vec<ClusterResource>> {
+        let client = kube::Client::try_default().await?;
+        let mut resources = Vec::new();
+
+        // 1. Deployments
+        let deployments: Api<k8s_openapi::api::apps::v1::Deployment> =
+            Api::namespaced(client.clone(), namespace);
+        let d_list = deployments.list(&kube::api::ListParams::default()).await?;
+        for d in d_list.items {
+            if let Some(name) = d.metadata.name {
+                resources.push(ClusterResource {
+                    kind: "Deployment".to_string(),
+                    name,
+                    namespace: namespace.to_string(),
+                    api_version: "apps/v1".to_string(),
+                });
+            }
+        }
+
+        // 2. StatefulSets
+        let statefulsets: Api<k8s_openapi::api::apps::v1::StatefulSet> =
+            Api::namespaced(client.clone(), namespace);
+        let s_list = statefulsets.list(&kube::api::ListParams::default()).await?;
+        for s in s_list.items {
+            if let Some(name) = s.metadata.name {
+                resources.push(ClusterResource {
+                    kind: "StatefulSet".to_string(),
+                    name,
+                    namespace: namespace.to_string(),
+                    api_version: "apps/v1".to_string(),
+                });
+            }
+        }
+
+        Ok(resources)
+    }
+
+    async fn get_tier_resources(&self, tier: DependencyTier) -> Result<Vec<ClusterResource>> {
+        self.startup_monitor.get_resources_for_tier(tier).await
+    }
 }

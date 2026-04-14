@@ -20,6 +20,14 @@ async fn main() -> Result<()> {
 
     // Layer 2: Application (Use Case)
     let workflow = Arc::new(RemediationWorkflow::new(remediator.clone()));
+    let startup_master = jules_remediator_rs::application::StartupMaster::new(remediator.clone());
+
+    // Layer 2.5: Background Master Loop
+    tokio::spawn(async move {
+        if let Err(e) = startup_master.run().await {
+            eprintln!("[StartupMaster] Critical Loop Failure: {:?}", e);
+        }
+    });
 
     // Layer 3: Watcher Loop (Primary Adapter)
     let watcher = K8sWatcher::new(Some(startup_monitor)).await?;
