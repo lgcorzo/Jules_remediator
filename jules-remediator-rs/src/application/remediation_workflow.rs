@@ -32,12 +32,12 @@ impl<R: Remediator> RemediationWorkflow<R> {
                 startup_state.phase
             );
 
-            // Tier 0: Bootstrap Anchor Check (flux-system/source-controller)
+            // Tier 0: Bootstrap Anchor Check (flux-system/source-controller Deployment)
             let bootstrap_resource = ClusterResource {
-                kind: "Pod".into(),
+                kind: "Deployment".into(),
                 name: "source-controller".into(),
                 namespace: "flux-system".into(),
-                api_version: "v1".into(),
+                api_version: "apps/v1".into(),
             };
 
             if !self
