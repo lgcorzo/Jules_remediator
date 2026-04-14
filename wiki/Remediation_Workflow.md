@@ -39,21 +39,26 @@ The system constructs a detailed prompt for Jules, including:
 ### 3. Verification
 After applying a fix, the pod monitors the resource's `READY` status for a configurable period (default: 300s) before confirming success.
 
-## 🚀 Starting Process Control (Zero Restart Guarantee)
+## 🚀 Proactive Starting Process Control (Controlled Startup)
 
-To prevent `CrashLoopBackOff` events during cluster startup, the Remediator implements an active orchestration loop.
+To prevent "Boot Storms" (high-density pod restarts) during cluster initialization or node reboots, the Jules Remediator implements a proactive, tiered orchestration system.
 
-### The Problem
-In distributed systems, application pods often start before their dependencies (e.g., Databases, Message Brokers), leading to container restarts and increased system load during initialization.
+### 🕵️ Boot Storm Detection
+The system monitors all `Started` events across all namespaces. If more than **10 pod starts** are detected within a **60-second window**, Jules enters "Orchestrated Startup" mode.
 
-### The Solution: Active Dependency Polling
-The `StartupMonitor` uses a dual-layer verification strategy:
-1. **Live K8s API Check**: Directly queries pods in the namespace to verify the `Ready` condition.
-2. **Event Timeline Heuristic**: Falls back to an internal persistence layer (SurrealDB) that tracks historic startup events if live data is definitive.
+### 🍱 Tiered Release Strategy
+Resources are categorized into four tiers:
 
-### The Monitoring Task
-When an error is detected during the startup phase:
-- **Pause**: The resource is scaled to 0 components to stop restart loops.
-- **Poll**: The `RemediationWorkflow` enters a polling loop (30s interval, 5m timeout), querying the `StartupMonitor` for dependency readiness.
-- **Resume**: Once dependencies are 'Ready', the resource is scaled back up.
-- **Verify**: A 15-second stability check is performed post-resumption to ensure zero subsequent restarts.
+| Tier | Name | Target Resources | Strategy |
+| :--- | :--- | :--- | :--- |
+| **0** | **Bootstrap** | `flux-system/source-controller` | **Foundation Anchor**: Jules ensures this is Ready first. |
+| **1** | **Foundation** | SQL DBs, Redis, RabbitMQ, Kafka | **Blocking**: Nothing in Tier 2/3 starts until Tier 1 is >95% Ready. |
+| **2** | **Core Services** | Keycloak, Ziti, Prom/Loki/Grafana | **Stabilization**: Active verification of middleware health. |
+| **3** | **Applications** | n8n, Flowise, llm-apps, r2r | **Batch Release**: Restored in small batches to avoid CPU saturation. |
+
+### 🧠 Auto-Learning
+Jules analyzes historical startup data in SurrealDB. If a pod (e.g. `hatchet`) frequently restarts during startup, the system automatically "promotes" its dependencies or assigns it to a later Tier 3 batch to optimize the flow.
+
+---
+
+**Prepared by:** Antigravity AI

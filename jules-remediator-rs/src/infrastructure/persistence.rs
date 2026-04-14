@@ -75,6 +75,31 @@ impl SurrealPersistence {
         events.sort_by_key(|e| e.timestamp);
         Ok(events)
     }
+
+    /// Identifies resources that historically have high restart counts or slow startup.
+    pub async fn get_unstable_resources(&self) -> Result<Vec<ClusterResource>> {
+        let events = self.get_startup_timeline().await?;
+        let mut unstable = Vec::new();
+
+        // Heuristic: If a resource appears in the timeline more than 3 times as "Started"
+        // before a "Ready" event in the same session, it's considered unstable.
+        // For now, we return unique resources that have multiple "Started" events.
+        let mut counts = std::collections::HashMap::new();
+        for event in events {
+            if event.status == "Started" {
+                *counts.entry(event.resource.name.clone()).or_insert(0) += 1;
+                if counts[&event.resource.name] > 2
+                    && !unstable
+                        .iter()
+                        .any(|r: &ClusterResource| r.name == event.resource.name)
+                {
+                    unstable.push(event.resource.clone());
+                }
+            }
+        }
+
+        Ok(unstable)
+    }
 }
 
 #[cfg(test)]
