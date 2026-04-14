@@ -206,19 +206,28 @@ impl Remediator for RemediatorImpl {
             resource.namespace, resource.name
         );
 
-        let output = tokio::process::Command::new("kubectl")
-            .arg("scale")
-            .arg(resource.kind.to_lowercase())
-            .arg(&resource.name)
-            .arg("-n")
-            .arg(&resource.namespace)
-            .arg("--replicas=0")
-            .output()
-            .await?;
+        let client = kube::Client::try_default().await?;
+        let patch = serde_json::json!({
+            "spec": {
+                "replicas": 0
+            }
+        });
+        let params = kube::api::PatchParams::apply("jules-remediator");
 
-        if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Failed to pause resource: {}", err);
+        match resource.kind.as_str() {
+            "Deployment" => {
+                let api: Api<k8s_openapi::api::apps::v1::Deployment> =
+                    Api::namespaced(client, &resource.namespace);
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                    .await?;
+            }
+            "StatefulSet" => {
+                let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
+                    Api::namespaced(client, &resource.namespace);
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                    .await?;
+            }
+            _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
         }
 
         Ok(())
@@ -230,19 +239,28 @@ impl Remediator for RemediatorImpl {
             resource.namespace, resource.name
         );
 
-        let output = tokio::process::Command::new("kubectl")
-            .arg("scale")
-            .arg(resource.kind.to_lowercase())
-            .arg(&resource.name)
-            .arg("-n")
-            .arg(&resource.namespace)
-            .arg("--replicas=1")
-            .output()
-            .await?;
+        let client = kube::Client::try_default().await?;
+        let patch = serde_json::json!({
+            "spec": {
+                "replicas": 1
+            }
+        });
+        let params = kube::api::PatchParams::apply("jules-remediator");
 
-        if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Failed to resume resource: {}", err);
+        match resource.kind.as_str() {
+            "Deployment" => {
+                let api: Api<k8s_openapi::api::apps::v1::Deployment> =
+                    Api::namespaced(client, &resource.namespace);
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                    .await?;
+            }
+            "StatefulSet" => {
+                let api: Api<k8s_openapi::api::apps::v1::StatefulSet> =
+                    Api::namespaced(client, &resource.namespace);
+                api.patch(&resource.name, &params, &kube::api::Patch::Apply(patch))
+                    .await?;
+            }
+            _ => anyhow::bail!("Scaling for kind {} not implemented", resource.kind),
         }
 
         Ok(())
