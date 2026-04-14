@@ -92,9 +92,9 @@ impl SurrealPersistence {
                     && !unstable
                         .iter()
                         .any(|r: &ClusterResource| r.name == event.resource.name)
-                    {
-                        unstable.push(event.resource.clone());
-                    }
+                {
+                    unstable.push(event.resource.clone());
+                }
             }
         }
 
