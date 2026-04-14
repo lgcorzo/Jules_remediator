@@ -7,6 +7,7 @@
 | Component | Role | Technology |
 | :--- | :--- | :--- |
 | **The Watcher** | Real-time observation of K8s events. | Rust / `kube-rs` |
+| **StartupMonitor** | Dependency tracking & orchestration. | Rust / `kube-rs` / SurrealDB |
 | **The Orchestrator** | Error translation & prompt engineering. | Rust / **ZeroClaw** (MCP Host) |
 | **The Executor** | Code modification & validation. | Remote AI / **Jules (MCP)** |
 | **The Sync** | Cluster state reconciliation. | **FluxCD** (GitOps) |
