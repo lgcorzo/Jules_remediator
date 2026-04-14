@@ -241,9 +241,12 @@ impl Remediator for RemediatorImpl {
                     .await?;
             }
             _ => {
-                println!("[Remediator] Warning: Scaling NOT supported for kind {}", resource.kind);
+                println!(
+                    "[Remediator] Warning: Scaling NOT supported for kind {}",
+                    resource.kind
+                );
                 anyhow::bail!("Scaling for kind {} not implemented", resource.kind)
-            },
+            }
         }
 
         Ok(())
@@ -290,9 +293,12 @@ impl Remediator for RemediatorImpl {
                     .await?;
             }
             _ => {
-                println!("[Remediator] Warning: Scaling NOT supported for kind {}", resource.kind);
+                println!(
+                    "[Remediator] Warning: Scaling NOT supported for kind {}",
+                    resource.kind
+                );
                 anyhow::bail!("Scaling for kind {} not implemented", resource.kind)
-            },
+            }
         }
 
         Ok(())
