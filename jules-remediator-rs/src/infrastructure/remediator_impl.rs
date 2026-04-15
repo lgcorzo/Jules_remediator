@@ -46,7 +46,10 @@ impl RemediatorImpl {
                 None => "EMPTY".to_string(),
             };
 
-            println!("[Remediator] Initializing LLM Client: {} @ {}", model, api_base);
+            println!(
+                "[Remediator] Initializing LLM Client: {} @ {}",
+                model, api_base
+            );
             llm_client = Some(Arc::new(LlmClient::new(api_base, model, &api_key)));
         }
 
