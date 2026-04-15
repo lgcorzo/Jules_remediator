@@ -3,9 +3,10 @@ use crate::domain::security::SecurityValidator;
 use crate::domain::services::Remediator;
 use crate::infrastructure::git_client::GitClient;
 use crate::infrastructure::jules_dispatcher::JulesDispatcher;
+use crate::infrastructure::llm_client::LlmClient;
 use crate::infrastructure::persistence::SurrealPersistence;
 use crate::infrastructure::startup_monitor::StartupMonitor;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use kube::Api;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -15,16 +16,46 @@ pub struct RemediatorImpl {
     persistence: Arc<SurrealPersistence>,
     git_client: Arc<GitClient>,
     startup_monitor: Arc<StartupMonitor>,
+    llm_client: Option<Arc<LlmClient>>,
 }
 
 impl RemediatorImpl {
     pub async fn new(dispatcher_uri: &str, db_path: &str, git_repo_path: &str) -> Result<Self> {
         let persistence = Arc::new(SurrealPersistence::new(db_path).await?);
+
+        let mut llm_client = None;
+        if let Some(llm_section) = std::fs::read_to_string("ZeroClaw.toml")
+            .ok()
+            .and_then(|s| toml::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|config| config.get("llm").cloned())
+        {
+            let api_base = llm_section
+                .get("api_base")
+                .and_then(|v| v.as_str())
+                .unwrap_or("http://litellm.llm-apps.svc.cluster.local:4000/v1");
+            let model = llm_section
+                .get("model")
+                .and_then(|v| v.as_str())
+                .unwrap_or("minimax-m2.7:cloud");
+            let api_key = match llm_section.get("api_key").and_then(|v| v.as_str()) {
+                Some(k) if k.starts_with("${") => {
+                    let var_name = &k[2..k.len() - 1];
+                    std::env::var(var_name).unwrap_or_else(|_| "EMPTY".to_string())
+                }
+                Some(k) => k.to_string(),
+                None => "EMPTY".to_string(),
+            };
+
+            println!("[Remediator] Initializing LLM Client: {} @ {}", model, api_base);
+            llm_client = Some(Arc::new(LlmClient::new(api_base, model, &api_key)));
+        }
+
         Ok(Self {
             dispatcher: Arc::new(JulesDispatcher::new(dispatcher_uri).await?),
             persistence: persistence.clone(),
             git_client: Arc::new(GitClient::new(git_repo_path.into())),
             startup_monitor: Arc::new(StartupMonitor::new(persistence)),
+            llm_client,
         })
     }
 
@@ -349,5 +380,15 @@ impl Remediator for RemediatorImpl {
 
     async fn get_tier_resources(&self, tier: DependencyTier) -> Result<Vec<ClusterResource>> {
         self.startup_monitor.get_resources_for_tier(tier).await
+    }
+
+    async fn autonomous_review(&self, error: &ClusterError) -> Result<AutonomousReview> {
+        if let Some(llm) = &self.llm_client {
+            llm.review_error(error).await
+        } else {
+            Err(anyhow!(
+                "LLM Client not initialized. Check ZeroClaw.toml & LITELLM_API_KEY"
+            ))
+        }
     }
 }

@@ -40,4 +40,7 @@ pub trait Remediator {
 
     /// Gets all resources defined in a specific tier mapping.
     async fn get_tier_resources(&self, tier: DependencyTier) -> Result<Vec<ClusterResource>>;
+
+    /// Performs an autonomous analysis of the error using an LLM.
+    async fn autonomous_review(&self, error: &ClusterError) -> Result<AutonomousReview>;
 }

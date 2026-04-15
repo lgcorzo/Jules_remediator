@@ -126,3 +126,12 @@ pub struct RemediationOutcome {
     pub latency_ms: u64,
     pub logs: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutonomousReview {
+    pub error_id: Uuid,
+    pub analysis: String,
+    pub is_remediable: bool,
+    pub suggested_action: Option<String>,
+    pub confidence: f32,
+}
