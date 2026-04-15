@@ -8,16 +8,26 @@ The remediation process is a closed-loop automation flow between FluxCD, the Rem
 sequenceDiagram
     participant Cluster as K8s Cluster (FluxCD)
     participant RP as Remediator Pod
+    participant LLM as LiteLLM (Autonomous Review)
     participant ML as MLflow (Experiment Tracking)
     participant J as Jules (Agent)
 
     Cluster->>RP: FluxCD Alert (Webhook)
     RP->>ML: Start Experiment Run
     RP->>RP: Classify Error Context
-    RP->>J: Request Fix (Remediation Prompt)
-    J->>RP: Return Fix (Patch/PR)
-    RP->>Cluster: Apply Fix
-    RP->>RP: Wait for Health Check
+    RP->>LLM: Request Autonomous Review (Minimax)
+    alt Is Remediable
+        LLM-->>RP: Proceed with Fix
+        RP->>J: Request Fix (Remediation Prompt + context)
+        J->>RP: Return Fix (Patch/PR)
+        RP->>Cluster: Apply Fix
+        RP->>RP: Wait for Health Check
+    else Not Remediable
+        LLM-->>RP: Bypass Remediation
+        RP->>ML: Log Analysis (Noise reduction)
+        RP->>RP: Close Session
+    end
+    
     alt Fix Success
         RP->>ML: Log Success & Metrics
     else Fix Failed
@@ -27,14 +37,16 @@ sequenceDiagram
 
 ## 🛠️ Execution Details
 
-### 1. Alert Classification
-The Remediator parses the FluxCD alert payload and retrieves additional cluster context (logs, describe output) using the `kubernetes-python-client`.
+### 1. Alert Classification & Startup Check
+The Remediator parses the FluxCD alert payload and retrieves additional cluster context. It also checks the "Boot Storm" state to ensure dependencies are ready before attempting any remediation.
 
-### 2. Jules Interaction
-The system constructs a detailed prompt for Jules, including:
-- **Current Cluster State**
-- **Error Logs**
-- **Attempted Actions History**
+### 2. Autonomous Review Phase (New)
+Before invoking a full Jules remediation session, the system calls the **LiteLLM Gateway** (model: `minimax-m2.7:cloud`).
+- **Goal**: Analyze the error to see if it's transient or if manual intervention is better.
+- **Result**: If the model decides an error is not remediable with high confidence, the system stops, preventing unnecessary GitOps noise and MLflow clutter.
+
+### 3. Jules Interaction
+If the review approves, the system constructs a detailed prompt for Jules, enriched with the **Autonomous Analysis** results.
 
 ### 3. Verification
 After applying a fix, the pod monitors the resource's `READY` status for a configurable period (default: 300s) before confirming success.
