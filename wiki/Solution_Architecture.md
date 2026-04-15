@@ -9,6 +9,7 @@
 | **The Watcher** | Real-time observation of K8s events. | Rust / `kube-rs` |
 | **StartupMonitor** | Proactive dependency tracking & tiered orchestration. | Rust / `kube-rs` / SurrealDB |
 | **The Orchestrator** | Error translation & prompt engineering. | Rust / **ZeroClaw** (MCP Host) |
+| **Autonomous Reviewer**| Intelligent error filtering & analysis. | Rust / **LiteLLM** (Minimax) |
 | **The Executor** | Code modification & validation. | Remote AI / **Jules (MCP)** |
 | **The Sync** | Cluster state reconciliation. | **FluxCD** (GitOps) |
 
@@ -44,7 +45,8 @@ Dependencies only point **inward**. The Domain layer knows nothing about the Inf
 ```mermaid
 graph TD
     Watcher[The Watcher] -->|Events| Orchestrator[The Orchestrator]
-    Orchestrator -->|MCP| Executor[The Executor]
+    Orchestrator -->|LLM Review| Reviewer[Autonomous Reviewer]
+    Reviewer -->|Remediable| Executor[The Executor]
     Executor -->|PR| Git[Git Source of Truth]
     Git -->|Reconcile| Sync[The Sync]
 ```
