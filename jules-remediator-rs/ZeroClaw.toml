@@ -24,3 +24,10 @@ interval = "10s"
 namespaces = ["default", "flux-system", "kube-system"]
 severity_threshold = "medium"
 remediable_errors = ["OOMKilled", "CrashLoopBackOff", "BackOff"]
+
+[llm]
+# LiteLLM Gateway Connection
+provider = "openai"
+model = "minimax-m2.7:cloud"
+api_base = "http://litellm.llm-apps.svc.cluster.local:4000/v1"
+api_key = "${LITELLM_API_KEY}"

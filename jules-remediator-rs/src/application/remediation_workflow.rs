@@ -148,8 +148,29 @@ impl<R: Remediator> RemediationWorkflow<R> {
                 return Ok(None);
             }
         }
+        // --- Autonomous Review Phase ---
+        let review = self.remediator.autonomous_review(&error).await?;
+        println!(
+            "[Workflow] Autonomous Review ({}): {}",
+            if review.is_remediable {
+                "Remediable"
+            } else {
+                "Not Remediable"
+            },
+            review.analysis
+        );
+
+        if !review.is_remediable && review.confidence > 0.8 {
+            println!("[Workflow] Autonomous model decided NO REMEDIATION NECESSARY. Stopping.");
+            return Ok(None);
+        }
 
         let mut proposal = self.remediator.propose_fix(&error).await?;
+        // Enrich proposal explanation with autonomous review
+        proposal.explanation = format!(
+            "Autonomous Review: {}\n\nJules Explanation: {}",
+            review.analysis, proposal.explanation
+        );
         let tracking_id = proposal.tracking_id;
         let mut attempts = 1;
         let max_attempts = 3;
@@ -234,6 +255,17 @@ mod tests {
             })
         });
 
+        // Autonomous Review
+        mock.expect_autonomous_review().returning(move |e| {
+            Ok(AutonomousReview {
+                error_id: e.id,
+                analysis: "Looks remediable".into(),
+                is_remediable: true,
+                suggested_action: None,
+                confidence: 0.9,
+            })
+        });
+
         // Proposal
         mock.expect_propose_fix().returning(move |_| {
             Ok(FixProposal {
@@ -303,6 +335,17 @@ mod tests {
                 boot_storm_detected: false,
                 batch_size: 2,
                 release_interval_secs: 60,
+            })
+        });
+
+        // Autonomous Review
+        mock.expect_autonomous_review().returning(move |e| {
+            Ok(AutonomousReview {
+                error_id: e.id,
+                analysis: "Startup issue".into(),
+                is_remediable: true,
+                suggested_action: None,
+                confidence: 0.9,
             })
         });
 
