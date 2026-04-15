@@ -15,6 +15,7 @@ Aethelgard operates as a "Dark System," silently maintaining the cluster's stabi
 - **The Watcher (Rust)**: High-speed observation via `kube-rs`.
 - **The Orchestrator (ZeroClaw)**: Rust-based MCP host for AI coordination.
 - **The Executor (Jules MCP)**: Autonomous AI engineering agent.
+- **Autonomous Review Phase**: Integrated LLM analysis (via LiteLLM / Minimax m2.7) to analyze errors and bypass non-remediable events, reducing GitOps noise.
 - **The Sync (FluxCD)**: Automated GitOps reconciliation.
 - **Proactive Starting Process Control**: Tiered, dependency-aware initialization sequence (Tier 0-3) ensuring zero restarts during "Boot Storms."
 - `src/application/`: Orchestration and use case handling.
