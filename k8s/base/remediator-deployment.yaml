@@ -13,6 +13,7 @@ spec:
       labels:
         app: jules-remediator
     spec:
+      priorityClassName: jules-remediator-priority
       serviceAccountName: jules-remediator-sa
       containers:
       - name: remediator
