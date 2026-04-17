@@ -1,0 +1,7 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: jules-remediator-priority
+value: 1000000
+globalDefault: false
+description: "Priority class for the Jules Remediator pod to ensure priority scheduling."
