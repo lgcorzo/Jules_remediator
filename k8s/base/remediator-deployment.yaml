@@ -37,6 +37,18 @@ spec:
             secretKeyRef:
               name: litellm-secrets
               key: LITELLM_MASTER_KEY
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: litellm-secrets
+              key: GITHUB_TOKEN
+        - name: GITOPS_REPO_URL
+          value: "https://github.com/lgcorzo/gitops_internal_lgcorzo.git"
+        - name: GITOPS_REPO_PATH
+          value: "/data/gitops-repo"
+        volumeMounts:
+        - name: data
+          mountPath: /data
         resources:
           limits:
             cpu: "500m"
@@ -44,6 +56,9 @@ spec:
           requests:
             cpu: "200m"
             memory: "512Mi"
+      volumes:
+      - name: data
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
