@@ -43,4 +43,7 @@ pub trait Remediator {
 
     /// Performs an autonomous analysis of the error using an LLM.
     async fn autonomous_review(&self, error: &ClusterError) -> Result<AutonomousReview>;
+
+    /// Deletes failed pods in a namespace (or all namespaces if None) to reset restart counts.
+    async fn delete_failed_pods(&self, namespace: Option<&str>) -> Result<usize>;
 }

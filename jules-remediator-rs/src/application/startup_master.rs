@@ -2,15 +2,20 @@ use crate::domain::models::*;
 use crate::domain::services::Remediator;
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{Duration, sleep};
 
 pub struct StartupMaster {
     remediator: Arc<dyn Remediator + Send + Sync>,
+    cleanup_performed: AtomicBool,
 }
 
 impl StartupMaster {
     pub fn new(remediator: Arc<dyn Remediator + Send + Sync>) -> Self {
-        Self { remediator }
+        Self {
+            remediator,
+            cleanup_performed: AtomicBool::new(false),
+        }
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -34,6 +39,9 @@ impl StartupMaster {
                 self.orchestrate(state).await?;
 
                 println!("[StartupMaster] Orchestration complete. Cluster stabilized.");
+                self.perform_cleanup().await;
+            } else if matches!(state.phase, StartupPhase::Stabilized) {
+                self.perform_cleanup().await;
             }
 
             sleep(Duration::from_secs(30)).await;
@@ -121,5 +129,21 @@ impl StartupMaster {
             self.remediator.resume_resource(&res).await?;
         }
         Ok(())
+    }
+
+    async fn perform_cleanup(&self) {
+        if !self.cleanup_performed.load(Ordering::SeqCst) {
+            println!("[StartupMaster] System is stable. Performing post-stabilization cleanup (Resetting Restart Counts)...");
+            match self.remediator.delete_failed_pods(None).await {
+                Ok(count) => {
+                    println!(
+                        "[StartupMaster] Cleanup complete. Deleted {} failed pods and reset their baselines.",
+                        count
+                    );
+                    self.cleanup_performed.store(true, Ordering::SeqCst);
+                }
+                Err(e) => eprintln!("[StartupMaster] Post-stabilization cleanup failed: {:?}", e),
+            }
+        }
     }
 }
