@@ -26,17 +26,17 @@ spec:
         - name: JULES_DISPATCHER_URI
           value: "http://jules-cloud-vm.internal:8080/mcp"
         - name: LITELLM_ENDPOINT
-          value: "http://litellm.llm-apps.svc.cluster.local:4000/v1"
+          value: "http://litellm.llm-apps.svc.cluster.local/v1"
         - name: LITELLM_API_KEY
           valueFrom:
             secretKeyRef:
-              name: jules-api-key
-              key: api-key
+              name: litellm-secrets
+              key: LITELLM_MASTER_KEY
         - name: JULES_API_KEY
           valueFrom:
             secretKeyRef:
-              name: jules-api-key
-              key: api-key
+              name: litellm-secrets
+              key: LITELLM_MASTER_KEY
         resources:
           limits:
             cpu: "500m"
