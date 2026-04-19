@@ -63,8 +63,11 @@ impl RemediatorImpl {
         // Automated Clone Logic
         if let Some(url) = git_repo_url {
             if !std::path::Path::new(git_repo_path).exists() {
-                println!("[Remediator] Repo path {:?} not found. Attempting clone...", git_repo_path);
-                
+                println!(
+                    "[Remediator] Repo path {:?} not found. Attempting clone...",
+                    git_repo_path
+                );
+
                 let auth_url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
                     if url.contains("github.com") && !url.contains("@") {
                         url.replace("https://", &format!("https://{}@", token))
