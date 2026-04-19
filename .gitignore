@@ -148,4 +148,7 @@ cython_debug/
 
 # MLflow
 mlruns/
-mlruns/
+
+# Certificates and Keys
+*.pem
+*.perm

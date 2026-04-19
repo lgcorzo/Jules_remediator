@@ -22,6 +22,7 @@ WORKDIR /usr/local/bin
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from the builder stage
