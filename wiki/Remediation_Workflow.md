@@ -71,6 +71,19 @@ Resources are categorized into four tiers:
 ### 🧠 Auto-Learning
 Jules analyzes historical startup data in SurrealDB. If a pod (e.g. `hatchet`) frequently restarts during startup, the system automatically "promotes" its dependencies or assigns it to a later Tier 3 batch to optimize the flow.
 
+## 🧹 Stability-Based Cleanup (Self-Purge)
+
+Once the system is declared **Stable** (either through the 10-minute stabilization window or after a completed tiered orchestration), the Jules Remediator performs a final cleanup of the environment.
+
+### 🎯 Objective: Resetting the Baseline
+Any pods that failed during the startup process (e.g., those that hit `CrashLoopBackOff` while waiting for a dependency) might remain in the cluster in a degraded state even after the system is healthy.
+
+### ⚙️ Mechanics
+1. **Identification**: The system scans all namespaces for pods in `Failed` phase or those with container statuses indicating error states (e.g., `Error`, `CrashLoopBackOff`, `ImagePullBackOff`).
+2. **Execution**: These pods are deleted.
+3. **Reset**: Kubernetes controllers (Deployments/StatefulSets) automatically recreate the pods. Since these are new pods, their **restart counts** are reset to zero, providing a clean operational baseline.
+4. **Throttle**: This operation is performed **exactly once** per system restart to prevent recursive cleanup loops.
+
 ---
 
 **Prepared by:** Antigravity AI

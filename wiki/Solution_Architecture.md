@@ -12,6 +12,7 @@
 | **Autonomous Reviewer**| Intelligent error filtering & analysis. | Rust / **LiteLLM** (Minimax) |
 | **The Executor** | Code modification & validation. | Remote AI / **Jules (MCP)** |
 | **The Sync** | Cluster state reconciliation. | **FluxCD** (GitOps) |
+| **Stability Cleaner** | Post-stabilization pod cleanup & restart reset. | Rust / `kube-rs` |
 
 ## 🧱 DDD Layered Design
 
