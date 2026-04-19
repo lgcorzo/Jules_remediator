@@ -24,6 +24,10 @@ The following requirements define the core capabilities and performance standard
 - **Tracking**: Log every remediation session as an MLflow run.
 - **Success Metrics**: Record `remediation_success` and `latency_ms`.
 
+### 6. Stability-Based Cleanup
+- **Post-Restart Reset**: Automatically purge failed pods and reset container restart counts to zero once the cluster is stable following a system restart.
+- **Single-Trigger**: Ensure the cleanup executes exactly once per restart event to maintain operational stability.
+
 ---
 
 ## 🟡 Non-Functional Requirements

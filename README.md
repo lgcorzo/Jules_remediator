@@ -18,7 +18,7 @@ Aethelgard operates as a "Dark System," silently maintaining the cluster's stabi
 - **Autonomous Review Phase**: Integrated LLM analysis (via LiteLLM / Minimax m2.7) to analyze errors and bypass non-remediable events, reducing GitOps noise.
 - **The Sync (FluxCD)**: Automated GitOps reconciliation.
 - **Proactive Starting Process Control**: Tiered, dependency-aware initialization sequence (Tier 0-3) ensuring zero restarts during "Boot Storms."
-- **Stability-Triggered Cleanup**: Automatically purges failed pods and resets container restart counts once the cluster reaches a stable state, ensuring a clean slate for the next operational cycle.
+- **Stability-Triggered Cleanup**: Automatically detects cluster stabilization after a "Boot Storm." Once healthy, it performs a one-time purge of all pods in `Failed` or `UnexpectedAdmissionError` states and resets restart counts to zero, ensuring the cluster returns to a pristine, production-ready state without lingering artifacts.
 - `src/application/`: Orchestration and use case handling.
 - `src/infrastructure/`: Kubernetes and Jules SDK integrations.
 - `src/interface/`: Webhook entry points for FluxCD.

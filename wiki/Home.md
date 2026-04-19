@@ -7,6 +7,7 @@
 ### ✅ Modern Infrastructure
 - **High-Performance**: Rust-native cores operational with sub-15MB RAM footprints.
 - **Self-Healing**: Autonomous diagnosis and GitOps-reconciliation.
+- **Stability-Triggered Cleanup**: Automated post-restart stabilization and pod purging.
 - **Enterprise Standards**: DDD, MLOps, and secure-by-design.
 
 ## 🏗️ Core Pillars
