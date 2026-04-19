@@ -77,3 +77,15 @@
 **Vulnerability:** Command whitelisting using simple string prefix matching (e.g., `command.starts_with("kubectl patch")`) allowed bypasses like `kubectl patch-internal-stuff`.
 **Learning:** When validating command prefixes, it is critical to ensure that the prefix is followed by a word boundary (like a space) or is the entire string, to prevent matching similar-looking but unauthorized subcommands.
 **Prevention:** Use boundary-aware prefix matching: `command == prefix || command.starts_with(&(prefix.to_string() + " "))`.
+
+## 2027-05-22 - Over-privileged Remediator RBAC
+
+**Vulnerability:** The `jules-remediator` service account was granted the `cluster-admin` role, which is over-privileged and violates the principle of least privilege. An attacker compromising the remediator would have full control over the cluster.
+**Learning:** Defaulting to `cluster-admin` during development is common but often persists into production manifests. RBAC should always be scoped to the minimum necessary permissions.
+**Prevention:** Explicitly define a `ClusterRole` with only the required verbs and resources. For a remediator, this usually includes `get/list/watch` on events and pods, and `get/list/patch` on workloads and their scale subresources.
+
+## 2027-05-22 - Command Injection via Subshells
+
+**Vulnerability:** The `SecurityValidator` blocked common command chaining characters but did not block `(` and `)`, allowing for subshell execution (e.g., `$(dangerous_command)`).
+**Learning:** Command injection filters must be comprehensive and include all shell metacharacters that can lead to code execution, including subshells.
+**Prevention:** Include `(` and `)` in the list of restricted characters for command validation.

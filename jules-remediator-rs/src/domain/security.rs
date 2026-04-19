@@ -25,6 +25,9 @@ impl SecurityValidator {
             "format",
             "privileged: true",
             "hostNetwork: true",
+            "hostPID: true",
+            "hostIPC: true",
+            "allowPrivilegeEscalation: true",
             "runAsUser: 0",
         ];
         for pattern in dangerous_patterns {
@@ -40,8 +43,10 @@ impl SecurityValidator {
     }
 
     fn validate_command(command: &str) -> Result<()> {
-        // Block command chaining, backgrounding, and shell metacharacters/expansions
-        let restricted_patterns = ["&&", ";", "|", ">", "<", "$", "`", "\\", "\n", "\r", "&"];
+        // Block command chaining, backgrounding, and shell metacharacters/expansions/subshells
+        let restricted_patterns = [
+            "&&", ";", "|", ">", "<", "$", "`", "\\", "\n", "\r", "&", "(", ")",
+        ];
 
         for pattern in restricted_patterns {
             if command.contains(pattern) {
@@ -314,15 +319,43 @@ mod tests {
 
     #[test]
     fn test_insecure_k8s_config() {
+        let cases = [
+            "privileged: true",
+            "hostPID: true",
+            "hostIPC: true",
+            "allowPrivilegeEscalation: true",
+        ];
+
+        for case in cases {
+            let proposal = FixProposal {
+                error_id: Uuid::new_v4(),
+                proposal_id: Uuid::new_v4(),
+                tracking_id: Uuid::new_v4(),
+                code_change: case.into(),
+                explanation: "".into(),
+                risk_score: RiskScore::Low,
+                confidence: 1.0,
+                remediation_command: None,
+            };
+            assert!(
+                SecurityValidator::validate_proposal(&proposal).is_err(),
+                "Failed to block: {}",
+                case
+            );
+        }
+    }
+
+    #[test]
+    fn test_subshell_injection() {
         let proposal = FixProposal {
             error_id: Uuid::new_v4(),
             proposal_id: Uuid::new_v4(),
             tracking_id: Uuid::new_v4(),
-            code_change: "privileged: true".into(),
+            code_change: "".into(),
             explanation: "".into(),
             risk_score: RiskScore::Low,
             confidence: 1.0,
-            remediation_command: None,
+            remediation_command: Some("kubectl patch deployment foo -p $(rm -rf /)".into()),
         };
         assert!(SecurityValidator::validate_proposal(&proposal).is_err());
     }
