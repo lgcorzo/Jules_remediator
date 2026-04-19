@@ -133,7 +133,9 @@ impl StartupMaster {
 
     async fn perform_cleanup(&self) {
         if !self.cleanup_performed.load(Ordering::SeqCst) {
-            println!("[StartupMaster] System is stable. Performing post-stabilization cleanup (Resetting Restart Counts)...");
+            println!(
+                "[StartupMaster] System is stable. Performing post-stabilization cleanup (Resetting Restart Counts)..."
+            );
             match self.remediator.delete_failed_pods(None).await {
                 Ok(count) => {
                     println!(

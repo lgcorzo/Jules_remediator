@@ -422,9 +422,9 @@ impl Remediator for RemediatorImpl {
         }
     }
 
-    async fn delete_failed_pods(&self, namespace: Option<&str>) -> Result<usize> {
+    async fn delete_failed_pods(&self, namespace: Option<String>) -> Result<usize> {
         let client = kube::Client::try_default().await?;
-        let pods: Api<k8s_openapi::api::core::v1::Pod> = if let Some(ns) = namespace {
+        let pods: Api<k8s_openapi::api::core::v1::Pod> = if let Some(ns) = &namespace {
             Api::namespaced(client.clone(), ns)
         } else {
             Api::all(client.clone())
@@ -439,26 +439,31 @@ impl Remediator for RemediatorImpl {
 
             let should_delete = if let Some(status) = &pod.status {
                 let phase_failed = status.phase.as_deref() == Some("Failed");
-                let containers_failed = status.container_statuses.as_ref().map(|statuses| {
-                    statuses.iter().any(|s| {
-                        if let Some(waiting) = &s.state.as_ref().and_then(|st| st.waiting.as_ref()) {
-                            matches!(
-                                waiting.reason.as_deref(),
-                                Some("CrashLoopBackOff")
-                                    | Some("Error")
-                                    | Some("ImagePullBackOff")
-                                    | Some("CreateContainerConfigError")
-                            )
-                        } else if let Some(terminated) =
-                            &s.state.as_ref().and_then(|st| st.terminated.as_ref())
-                        {
-                            terminated.exit_code != 0
-                        } else {
-                            false
-                        }
+                let containers_failed = status
+                    .container_statuses
+                    .as_ref()
+                    .map(|statuses| {
+                        statuses.iter().any(|s| {
+                            if let Some(waiting) =
+                                &s.state.as_ref().and_then(|st| st.waiting.as_ref())
+                            {
+                                matches!(
+                                    waiting.reason.as_deref(),
+                                    Some("CrashLoopBackOff")
+                                        | Some("Error")
+                                        | Some("ImagePullBackOff")
+                                        | Some("CreateContainerConfigError")
+                                )
+                            } else if let Some(terminated) =
+                                &s.state.as_ref().and_then(|st| st.terminated.as_ref())
+                            {
+                                terminated.exit_code != 0
+                            } else {
+                                false
+                            }
+                        })
                     })
-                })
-                .unwrap_or(false);
+                    .unwrap_or(false);
                 phase_failed || containers_failed
             } else {
                 false
