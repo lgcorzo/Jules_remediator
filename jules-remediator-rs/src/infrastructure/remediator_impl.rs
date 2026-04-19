@@ -439,6 +439,12 @@ impl Remediator for RemediatorImpl {
 
             let should_delete = if let Some(status) = &pod.status {
                 let phase_failed = status.phase.as_deref() == Some("Failed");
+                let has_restarts = status
+                    .container_statuses
+                    .as_ref()
+                    .map(|statuses| statuses.iter().any(|s| s.restart_count > 0))
+                    .unwrap_or(false);
+
                 let containers_failed = status
                     .container_statuses
                     .as_ref()
@@ -453,6 +459,9 @@ impl Remediator for RemediatorImpl {
                                         | Some("Error")
                                         | Some("ImagePullBackOff")
                                         | Some("CreateContainerConfigError")
+                                        | Some("RunContainerError")
+                                        | Some("CreateContainerError")
+                                        | Some("UnexpectedAdmissionError")
                                 )
                             } else if let Some(terminated) =
                                 &s.state.as_ref().and_then(|st| st.terminated.as_ref())
@@ -464,7 +473,7 @@ impl Remediator for RemediatorImpl {
                         })
                     })
                     .unwrap_or(false);
-                phase_failed || containers_failed
+                phase_failed || containers_failed || has_restarts
             } else {
                 false
             };
