@@ -61,25 +61,23 @@ impl RemediatorImpl {
         let git_client = Arc::new(GitClient::new(git_repo_path.into()));
 
         // Automated Clone Logic
-        if let Some(url) = git_repo_url {
-            if !std::path::Path::new(git_repo_path).exists() {
-                println!(
-                    "[Remediator] Repo path {:?} not found. Attempting clone...",
-                    git_repo_path
-                );
+        if let (Some(url), false) = (git_repo_url, std::path::Path::new(git_repo_path).exists()) {
+            println!(
+                "[Remediator] Repo path {:?} not found. Attempting clone...",
+                git_repo_path
+            );
 
-                let auth_url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-                    if url.contains("github.com") && !url.contains("@") {
-                        url.replace("https://", &format!("https://{}@", token))
-                    } else {
-                        url.to_string()
-                    }
+            let auth_url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                if url.contains("github.com") && !url.contains("@") {
+                    url.replace("https://", &format!("https://{}@", token))
                 } else {
                     url.to_string()
-                };
+                }
+            } else {
+                url.to_string()
+            };
 
-                git_client.clone_repo(&auth_url)?;
-            }
+            git_client.clone_repo(&auth_url)?;
         }
 
         Ok(Self {
