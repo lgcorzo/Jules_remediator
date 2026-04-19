@@ -12,10 +12,12 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "http://jules-cloud-vm.internal:8080/mcp".into());
     let db_path = "surreal.db";
     let git_repo_path = std::env::var("GITOPS_REPO_PATH")
-        .unwrap_or_else(|_| "/mnt/F024B17C24B145FE/Repos/gitops_internal_lgcorzo".into());
+        .unwrap_or_else(|_| "/data/gitops-repo".into());
+    let git_repo_url = std::env::var("GITOPS_REPO_URL")
+        .unwrap_or_else(|_| "https://github.com/lgcorzo/gitops_internal_lgcorzo.git".into());
 
     // Layer 1: Infrastructure (Adapters)
-    let remediator = Arc::new(RemediatorImpl::new(&dispatcher_uri, db_path, &git_repo_path).await?);
+    let remediator = Arc::new(RemediatorImpl::new(&dispatcher_uri, db_path, &git_repo_path, Some(&git_repo_url)).await?);
     let startup_monitor = remediator.get_startup_monitor();
 
     // Layer 2: Application (Use Case)

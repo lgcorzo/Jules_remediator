@@ -20,7 +20,12 @@ pub struct RemediatorImpl {
 }
 
 impl RemediatorImpl {
-    pub async fn new(dispatcher_uri: &str, db_path: &str, git_repo_path: &str) -> Result<Self> {
+    pub async fn new(
+        dispatcher_uri: &str,
+        db_path: &str,
+        git_repo_path: &str,
+        git_repo_url: Option<&str>,
+    ) -> Result<Self> {
         let persistence = Arc::new(SurrealPersistence::new(db_path).await?);
 
         let mut llm_client = None;
@@ -32,7 +37,7 @@ impl RemediatorImpl {
             let api_base = llm_section
                 .get("api_base")
                 .and_then(|v| v.as_str())
-                .unwrap_or("http://litellm.llm-apps.svc.cluster.local:4000/v1");
+                .unwrap_or("http://litellm.llm-apps.svc.cluster.local/v1");
             let model = llm_section
                 .get("model")
                 .and_then(|v| v.as_str())
@@ -53,10 +58,31 @@ impl RemediatorImpl {
             llm_client = Some(Arc::new(LlmClient::new(api_base, model, &api_key)));
         }
 
+        let git_client = Arc::new(GitClient::new(git_repo_path.into()));
+
+        // Automated Clone Logic
+        if let Some(url) = git_repo_url {
+            if !std::path::Path::new(git_repo_path).exists() {
+                println!("[Remediator] Repo path {:?} not found. Attempting clone...", git_repo_path);
+                
+                let auth_url = if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+                    if url.contains("github.com") && !url.contains("@") {
+                        url.replace("https://", &format!("https://{}@", token))
+                    } else {
+                        url.to_string()
+                    }
+                } else {
+                    url.to_string()
+                };
+
+                git_client.clone_repo(&auth_url)?;
+            }
+        }
+
         Ok(Self {
             dispatcher: Arc::new(JulesDispatcher::new(dispatcher_uri).await?),
             persistence: persistence.clone(),
-            git_client: Arc::new(GitClient::new(git_repo_path.into())),
+            git_client,
             startup_monitor: Arc::new(StartupMonitor::new(persistence)),
             llm_client,
         })
