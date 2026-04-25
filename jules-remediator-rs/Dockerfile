@@ -16,6 +16,9 @@ RUN cargo build --release
 # Runtime stage
 FROM debian:trixie-slim
 
+# Create a non-root user
+RUN groupadd -r -g 999 remediator && useradd -r -u 999 -g remediator remediator
+
 WORKDIR /usr/local/bin
 
 # Install runtime dependencies
@@ -26,6 +29,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy the binary from the builder stage
 COPY --from=builder /usr/src/app/target/release/jules-remediator-rs .
+
+# Use the non-root user
+USER remediator
 
 # Set the startup command
 ENTRYPOINT ["./jules-remediator-rs"]
