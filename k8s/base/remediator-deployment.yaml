@@ -15,9 +15,19 @@ spec:
     spec:
       priorityClassName: jules-remediator-priority
       serviceAccountName: jules-remediator-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
       - name: remediator
         image: lgcorzo/jules-remediator:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
         ports:
         - containerPort: 8000
         env:
