@@ -397,7 +397,10 @@ mod tests {
             remediation_command: None,
         };
         // This is expected to FAIL currently because the validator looks for "privileged: true"
-        assert!(SecurityValidator::validate_proposal(&proposal).is_err(), "Should have blocked 'privileged:true'");
+        assert!(
+            SecurityValidator::validate_proposal(&proposal).is_err(),
+            "Should have blocked 'privileged:true'"
+        );
     }
 
     #[test]
@@ -410,9 +413,14 @@ mod tests {
             explanation: "".into(),
             risk_score: RiskScore::Low,
             confidence: 1.0,
-            remediation_command: Some("kubectl patch deployment foo -p '{\"spec\":{\"privileged\":true}}'".into()),
+            remediation_command: Some(
+                "kubectl patch deployment foo -p '{\"spec\":{\"privileged\":true}}'".into(),
+            ),
         };
         // This is expected to FAIL currently because dangerous_patterns are only checked in code_change
-        assert!(SecurityValidator::validate_proposal(&proposal).is_err(), "Should have blocked dangerous pattern in remediation_command");
+        assert!(
+            SecurityValidator::validate_proposal(&proposal).is_err(),
+            "Should have blocked dangerous pattern in remediation_command"
+        );
     }
 }
