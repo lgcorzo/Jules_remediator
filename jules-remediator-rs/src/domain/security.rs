@@ -16,7 +16,7 @@ impl SecurityValidator {
             Self::validate_command(command)?;
         }
 
-        // Basic validation for code changes to prevent destructive actions and insecure configurations
+        // Basic validation for code changes and commands to prevent destructive actions and insecure configurations
         let dangerous_patterns = [
             "rm -rf",
             "mkfs",
@@ -27,19 +27,43 @@ impl SecurityValidator {
             "hostNetwork: true",
             "hostPID: true",
             "hostIPC: true",
+            "hostPath:",
             "allowPrivilegeEscalation: true",
             "runAsUser: 0",
         ];
+
+        // Normalize inputs for more robust pattern matching (remove whitespace and quotes)
+        let normalized_code = Self::normalize_string(&proposal.code_change);
+        let normalized_command = proposal
+            .remediation_command
+            .as_ref()
+            .map(|c| Self::normalize_string(c))
+            .unwrap_or_default();
+
         for pattern in dangerous_patterns {
-            if proposal.code_change.contains(pattern) {
+            let normalized_pattern = Self::normalize_string(pattern);
+            if normalized_code.contains(&normalized_pattern) {
                 bail!(
                     "Security Violation: Suspicious content '{}' found in code change",
+                    pattern
+                );
+            }
+            if !normalized_command.is_empty() && normalized_command.contains(&normalized_pattern) {
+                bail!(
+                    "Security Violation: Suspicious content '{}' found in remediation command",
                     pattern
                 );
             }
         }
 
         Ok(())
+    }
+
+    fn normalize_string(s: &str) -> String {
+        s.chars()
+            .filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
+            .collect::<String>()
+            .to_lowercase()
     }
 
     fn validate_command(command: &str) -> Result<()> {
@@ -358,5 +382,45 @@ mod tests {
             remediation_command: Some("kubectl patch deployment foo -p $(rm -rf /)".into()),
         };
         assert!(SecurityValidator::validate_proposal(&proposal).is_err());
+    }
+
+    #[test]
+    fn test_dangerous_pattern_whitespace_bypass() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
+            code_change: "privileged:true".into(), // missing space
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: None,
+        };
+        // This is expected to FAIL currently because the validator looks for "privileged: true"
+        assert!(
+            SecurityValidator::validate_proposal(&proposal).is_err(),
+            "Should have blocked 'privileged:true'"
+        );
+    }
+
+    #[test]
+    fn test_dangerous_pattern_in_remediation_command() {
+        let proposal = FixProposal {
+            error_id: Uuid::new_v4(),
+            proposal_id: Uuid::new_v4(),
+            tracking_id: Uuid::new_v4(),
+            code_change: "".into(),
+            explanation: "".into(),
+            risk_score: RiskScore::Low,
+            confidence: 1.0,
+            remediation_command: Some(
+                "kubectl patch deployment foo -p '{\"spec\":{\"privileged\":true}}'".into(),
+            ),
+        };
+        // This is expected to FAIL currently because dangerous_patterns are only checked in code_change
+        assert!(
+            SecurityValidator::validate_proposal(&proposal).is_err(),
+            "Should have blocked dangerous pattern in remediation_command"
+        );
     }
 }

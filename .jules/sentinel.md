@@ -89,3 +89,9 @@
 **Vulnerability:** The `SecurityValidator` blocked common command chaining characters but did not block `(` and `)`, allowing for subshell execution (e.g., `$(dangerous_command)`).
 **Learning:** Command injection filters must be comprehensive and include all shell metacharacters that can lead to code execution, including subshells.
 **Prevention:** Include `(` and `)` in the list of restricted characters for command validation.
+
+## 2027-05-25 - Robust Pattern Matching for Security Validation
+
+**Vulnerability:** Security validation for dangerous patterns (e.g., `privileged: true`, `hostPath:`) was easily bypassed by omitting whitespace or using different quoting (e.g., `privileged:true`). Additionally, these checks were only applied to `code_change` but not to `remediation_command`.
+**Learning:** String-based security filters are fragile if they rely on exact formatting. Attackers can often bypass them with trivial syntax variations. Furthermore, all fields that can influence system state (like remediation commands) must be subject to the same rigorous security checks.
+**Prevention:** Always normalize input (remove whitespace, quotes, convert to lowercase) before performing security pattern matching. Ensure all executable or configuration-altering fields are validated against the same set of dangerous patterns.
